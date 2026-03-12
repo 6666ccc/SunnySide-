@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.lc.sunnyside.mapper.ElderlyUserMapper">
+
+    <select id="selectById" resultType="cn.lc.sunnyside.POJO.DO.ElderlyUser">
+        SELECT *
+        FROM elderly_user
+        WHERE id = #{id}
+    </select>
+    <select id="selectBySurname" resultType="cn.lc.sunnyside.POJO.DO.ElderlyUser">
+        SELECT *
+        FROM elderly_user
+        WHERE full_name LIKE CONCAT('%', #{surname}, '%')
+    </select>
+
+</mapper>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.lc.sunnyside.mapper.VisitAppointmentMapper">
+
+    <insert id="insert" parameterType="cn.lc.sunnyside.POJO.DO.VisitAppointment"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO visit_appointment
+            (elder_id, visitor_name, visitor_phone, visit_time, status, created_at, relation)
+        VALUES
+            (#{elderId}, #{visitorName}, #{visitorPhone}, #{visitTime}, #{status}, #{createdAt}, #{relation})
+    </insert>
+
+    <select id="selectByElderId" resultType="cn.lc.sunnyside.POJO.DO.VisitAppointment">
+        SELECT *
+        FROM visit_appointment
+        WHERE elder_id = #{elderId}
+    </select>
+
+    <update id="cancelByIdAndElderId">
+        UPDATE visit_appointment
+        SET status = 'CANCELED'
+        WHERE id = #{appointmentId}
+          AND elder_id = #{elderId}
+          AND status IN ('PENDING', 'APPROVED')
+    </update>
+
+    <select id="selectByConditions" resultType="cn.lc.sunnyside.POJO.DO.VisitAppointment">
+        SELECT *
+        FROM visit_appointment
+        WHERE elder_id = #{elderId}
+        <if test="status != null and status != ''">
+            AND status = #{status}
+        </if>
+        <if test="from != null">
+            AND visit_time &gt;= #{from}
+        </if>
+        <if test="to != null">
+            AND visit_time &lt;= #{to}
+        </if>
+        ORDER BY visit_time ASC
+    </select>
+
+</mapper>

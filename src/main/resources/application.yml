@@ -1,0 +1,37 @@
+server:
+  port: 8080
+  
+
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/sunnyside?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
+    username: ${DB_USERNAME:root}       # 默认 root，生产环境请配置环境变量 DB_USERNAME
+    password: ${DB_PASSWORD:123456789}  # 默认 123456789，生产环境请配置环境变量 DB_PASSWORD
+
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: qwen-max
+          temperature: 0.7
+
+    # 2. Qdrant 向量数据库配置
+    vectorstore:
+      qdrant:
+        host: ${QDRANT_HOST}
+        port: 6334      # REST API 端口
+        collection-name: Sunny_Side_Qdrant # 集合名称
+        initialize-schema: true
+
+logging:
+  level:
+    org.springframework.ai: DEBUG 
+    io.qdrant.client: INFO        
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  mapper-locations: classpath:mapper/*.xml

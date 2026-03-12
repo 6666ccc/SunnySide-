@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.lc.sunnyside.mapper.AnnouncementMapper">
+
+    <select id="selectRecent" resultType="cn.lc.sunnyside.POJO.DO.Announcement">
+        SELECT *
+        FROM announcement
+        ORDER BY announcement_date DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectByConditions" resultType="cn.lc.sunnyside.POJO.DO.Announcement">
+        SELECT *
+        FROM announcement
+        WHERE 1 = 1
+        <if test="priority != null and priority != ''">
+            AND priority = #{priority}
+        </if>
+        <if test="activeOnly != null and activeOnly">
+            AND is_active = 1
+        </if>
+        ORDER BY announcement_date DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
