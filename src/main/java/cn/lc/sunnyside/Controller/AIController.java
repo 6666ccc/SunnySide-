@@ -1,6 +1,8 @@
 package cn.lc.sunnyside.Controller;
 
-import cn.lc.sunnyside.AITool.DailyTool;
+import cn.lc.sunnyside.AITool.ElderTool;
+import cn.lc.sunnyside.AITool.RelativesTool;
+import cn.lc.sunnyside.Auth.FamilyLoginContextHolder;
 import cn.lc.sunnyside.POJO.DTO.ChatReply;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
@@ -37,14 +39,17 @@ import java.io.IOException;
 @RestController
 public class AIController {
     private final ChatClient chatClient;
-    private final DailyTool dailyTool;
+    private final ElderTool elderTool;
+    private final RelativesTool relativesTool;
 
     @Value("classpath:prompts/system.st")
     private Resource systemPrompt;
 
-    public AIController(ChatClient.Builder builder, ChatMemory chatMemory, DailyTool dailyTool,
+    public AIController(ChatClient.Builder builder, ChatMemory chatMemory, ElderTool elderTool,
+            RelativesTool relativesTool,
             VectorStore vectorStore) {
-        this.dailyTool = dailyTool;
+        this.elderTool = elderTool;
+        this.relativesTool = relativesTool;
         this.chatClient = builder
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .defaultAdvisors(
@@ -67,7 +72,7 @@ public class AIController {
         String answer = this.chatClient.prompt(prompt)
                 .user(userInput)
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                .tools(dailyTool)
+                .tools(elderTool, relativesTool)
                 .call()
                 .content();
         return new ChatReply.ChatReplyRecord(answer, List.of());
@@ -86,7 +91,7 @@ public class AIController {
         return this.chatClient.prompt(prompt)
                 .user(userInput)
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                .tools(dailyTool)
+                .tools(elderTool, relativesTool)
                 .stream()
                 .content();
     }
@@ -128,7 +133,7 @@ public class AIController {
         }
         Prompt prompt = buildSystemPrompt();
         String answer = this.chatClient.prompt(prompt)
-                .options(DashScopeChatOptions.builder().multiModel(true).build())//开启多模态输入支
+                .options(DashScopeChatOptions.builder().multiModel(true).build())// 开启多模态输入支
                 .user(u -> {
                     u.text(userInput);
                     for (MultipartFile mediaFile : mediaFiles) {
@@ -141,7 +146,7 @@ public class AIController {
                     }
                 })
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-                .tools(dailyTool)
+                .tools(elderTool, relativesTool)
                 .call()
                 .content();
         return new ChatReply.ChatReplyRecord(answer, List.of());
@@ -149,8 +154,14 @@ public class AIController {
 
     private Prompt buildSystemPrompt() {
         SystemPromptTemplate systemPromptTemplate = new SystemPromptTemplate(systemPrompt);
+        String familyContext = FamilyLoginContextHolder.get()
+                .map(context -> "当前请求已登录家属信息：familyId=" + context.familyId() + "，familyPhone=" + context.phone()
+                        + "。当调用家属相关工具时，优先使用该身份，不要再向用户追问手机号。")
+                .orElse("当前请求未识别到已登录家属身份。");
         Message systemMessage = systemPromptTemplate
-                .createMessage(Map.of("current_time", LocalDateTime.now().toString()));
+                .createMessage(Map.of(
+                        "current_time", LocalDateTime.now().toString(),
+                        "family_context", familyContext));
         return new Prompt(List.of(systemMessage));
     }
 

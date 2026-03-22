@@ -53,4 +53,12 @@ public class ElderlyUserServiceImpl implements ElderlyUserService {
     public ElderlyUser findElderlyUserBySurname(String surname) {
         return elderlyUserMapper.selectBySurname(surname);
     }
+
+    @Override
+    public List<ElderlyUser> findByRef(String ref) {
+        if (ref == null || ref.isBlank()) {
+            return List.of();
+        }
+        return elderlyUserMapper.selectByRef(ref.trim());
+    }
 }

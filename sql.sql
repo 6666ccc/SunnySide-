@@ -163,3 +163,76 @@ create table visit_appointment
 create index idx_visit_elder_time
     on visit_appointment (elder_id, visit_time);
 
+-- ==========================================
+-- 新增：双端模式 - 家属/子女信息表
+-- ==========================================
+create table family_user
+(
+    id         bigint unsigned auto_increment comment '主键ID'
+        primary key,
+    username   varchar(64)                        not null comment '登录账号',
+    password   varchar(128)                       not null comment '登录密码',
+    full_name  varchar(64)                        not null comment '姓名',
+    phone      varchar(32)                        not null comment '手机号',
+    open_id    varchar(128)                       null comment '微信OpenID',
+    created_at datetime default CURRENT_TIMESTAMP not null,
+    updated_at datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP
+)
+    comment '家属/子女信息表';
+
+create unique index uk_family_phone
+    on family_user (phone);
+
+-- ==========================================
+-- 新增：双端模式 - 家属与老人关联表
+-- ==========================================
+create table family_elder_relation
+(
+    id                 bigint unsigned auto_increment comment '主键ID'
+        primary key,
+    family_id          bigint unsigned                    not null comment '家属ID',
+    elder_id           bigint unsigned                    not null comment '老人ID',
+    relation_type      varchar(32)                        not null comment '关系类型(如: 父子, 母女)',
+    is_primary_contact tinyint(1) default 0               not null comment '是否为主要紧急联系人',
+    created_at         datetime default CURRENT_TIMESTAMP not null,
+    constraint uk_family_elder
+        unique (family_id, elder_id),
+    constraint fk_relation_family
+        foreign key (family_id) references family_user (id)
+            on delete cascade,
+    constraint fk_relation_elder
+        foreign key (elder_id) references elderly_user (id)
+            on delete cascade
+)
+    comment '家属与老人关联表';
+
+create index idx_relation_elder
+    on family_elder_relation (elder_id);
+
+-- ==========================================
+-- 新增：双端模式 - 老人健康记录表
+-- ==========================================
+create table health_record
+(
+    id           bigint unsigned auto_increment comment '主键ID'
+        primary key,
+    elder_id     bigint unsigned                    not null comment '老人ID',
+    record_date  date                               not null comment '记录日期',
+    record_time  time                               not null comment '记录时间',
+    systolic_bp  int                                null comment '收缩压(高压) mmHg',
+    diastolic_bp int                                null comment '舒张压(低压) mmHg',
+    heart_rate   int                                null comment '心率 bpm',
+    blood_sugar  decimal(5, 2)                      null comment '血糖 mmol/L',
+    temperature  decimal(4, 1)                      null comment '体温 ℃',
+    notes        varchar(255)                       null comment '异常说明或备注',
+    created_at   datetime default CURRENT_TIMESTAMP not null,
+    constraint fk_health_elder
+        foreign key (elder_id) references elderly_user (id)
+            on delete cascade
+)
+    comment '老人健康记录表';
+
+create index idx_health_elder_date
+    on health_record (elder_id, record_date);
+
+

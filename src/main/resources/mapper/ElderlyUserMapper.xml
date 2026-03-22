@@ -12,5 +12,14 @@
         FROM elderly_user
         WHERE full_name LIKE CONCAT('%', #{surname}, '%')
     </select>
+    <select id="selectByRef" resultType="cn.lc.sunnyside.POJO.DO.ElderlyUser">
+        SELECT *
+        FROM elderly_user
+        WHERE CAST(id AS CHAR) = #{ref}
+           OR full_name LIKE CONCAT('%', #{ref}, '%')
+           OR phone LIKE CONCAT('%', #{ref}, '%')
+        ORDER BY id DESC
+        LIMIT 5
+    </select>
 
 </mapper>

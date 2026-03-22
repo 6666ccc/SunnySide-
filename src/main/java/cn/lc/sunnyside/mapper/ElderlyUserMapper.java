@@ -9,4 +9,5 @@ public interface ElderlyUserMapper {
 
     ElderlyUser selectById(@Param("id") Long id);
     ElderlyUser selectBySurname(@Param("surname") String surname);
+    java.util.List<ElderlyUser> selectByRef(@Param("ref") String ref);
 }
