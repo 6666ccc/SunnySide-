@@ -42,7 +42,7 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
         if (!familyUser.getPassword().equals(request.password().trim())) {
             throw new IllegalArgumentException("账号或密码错误。");
         }
-        long ttlHours = (jwtExpireHours == null || jwtExpireHours <= 0) ? 168L : jwtExpireHours;
+        long ttlHours = normalizeTtlHours(jwtExpireHours);
         LocalDateTime expiresAt = LocalDateTime.now().plusHours(ttlHours);
         String token = JWT.create()
                 .withIssuer(jwtIssuer)
@@ -72,5 +72,14 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private long normalizeTtlHours(Long configuredHours) {
+        long defaultHours = 24L;
+        long maxHours = 168L;
+        if (configuredHours == null || configuredHours <= 0) {
+            return defaultHours;
+        }
+        return Math.min(configuredHours, maxHours);
     }
 }

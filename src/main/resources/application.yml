@@ -45,4 +45,4 @@ app:
     jwt:
       secret: ${APP_JWT_SECRET:sunnyside-dev-jwt-secret}
       issuer: ${APP_JWT_ISSUER:sunnyside}
-      expire-hours: ${APP_JWT_EXPIRE_HOURS:168}
+      expire-hours: ${APP_JWT_EXPIRE_HOURS:24}

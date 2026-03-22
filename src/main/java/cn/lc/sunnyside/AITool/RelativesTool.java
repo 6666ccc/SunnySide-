@@ -37,7 +37,7 @@ public class RelativesTool {
             @ToolParam(description = "来访时间（ISO格式，例如2023-10-01T10:00:00）。") String time,
             @ToolParam(description = "关系。") String relation,
             @ToolParam(description = "联系电话。") String phone) {
-        Long resolvedElderId = resolveElderId(elderlyId, elderRef);// 尝试解析老人ID
+        Long resolvedElderId = resolveElderId(elderlyId, elderRef);
         if (resolvedElderId == null) {
             return "预约失败，" + unresolvedMessage(elderRef);
         }
@@ -102,9 +102,9 @@ public class RelativesTool {
         }
     }
 
-    @Tool(description = "家属查询老人健康记录。优先使用已登录家属身份，也支持显式输入家属手机号；并提供老人ID或身份线索。")
+    @Tool(description = "家属查询老人健康记录。仅支持已登录家属身份，并提供老人ID或身份线索。")
     public String queryElderHealth(
-            @ToolParam(description = "家属手机号。已登录时可不填。") String familyPhone,
+            @ToolParam(description = "家属手机号参数已废弃，将自动使用当前登录家属身份。") String familyPhone,
             @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
             @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef,
             @ToolParam(description = "开始日期，格式yyyy-MM-dd；不填默认今天。") String startDate,
@@ -115,7 +115,7 @@ public class RelativesTool {
         }
         String resolvedFamilyPhone = resolveFamilyPhone(familyPhone);
         if (resolvedFamilyPhone == null) {
-            return "查询失败，请先登录家属账号，或提供家属手机号。";
+            return "查询失败，请先登录家属账号。";
         }
         try {
             LocalDate start = parseDateOrNull(startDate);
@@ -130,9 +130,9 @@ public class RelativesTool {
         }
     }
 
-    @Tool(description = "家属查询老人某日概览。优先使用已登录家属身份，也支持显式输入家属手机号；并提供日期与老人信息。")
+    @Tool(description = "家属查询老人某日概览。仅支持已登录家属身份，并提供日期与老人信息。")
     public String getElderDailySummary(
-            @ToolParam(description = "家属手机号。已登录时可不填。") String familyPhone,
+            @ToolParam(description = "家属手机号参数已废弃，将自动使用当前登录家属身份。") String familyPhone,
             @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
             @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef,
             @ToolParam(description = "日期，格式yyyy-MM-dd；不填默认今天。") String date) {
@@ -142,7 +142,7 @@ public class RelativesTool {
         }
         String resolvedFamilyPhone = resolveFamilyPhone(familyPhone);
         if (resolvedFamilyPhone == null) {
-            return "查询失败，请先登录家属账号，或提供家属手机号。";
+            return "查询失败，请先登录家属账号。";
         }
         try {
             LocalDate targetDate = parseDateOrNull(date);
@@ -177,9 +177,6 @@ public class RelativesTool {
     }
 
     private String resolveFamilyPhone(String familyPhone) {
-        if (familyPhone != null && !familyPhone.isBlank()) {
-            return familyPhone.trim();
-        }
         return FamilyLoginContextHolder.get()
                 .map(ctx -> ctx.phone())
                 .filter(phone -> !phone.isBlank())
