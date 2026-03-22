@@ -4,6 +4,9 @@ server:
 
 
 spring:
+  #开启本地yml文件的配置覆盖全局yml文件的配置
+  profiles:
+      active: local
   datasource:
     url: jdbc:mysql://localhost:3306/sunnyside?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
     username: ${DB_USERNAME:root}       # 默认 root，生产环境请配置环境变量 DB_USERNAME
@@ -11,11 +14,12 @@ spring:
 
   ai:
     dashscope:
-      api-key: ${DASHSCOPE_API_KEY}
+      api-key: ${DASHSCOPE_API_KEY:}
       chat:
         options:
-          model: qwen-max
+          model: ${DASHSCOPE_CHAT_MODEL:qwen-vl-max-latest}
           temperature: 0.7
+          multi-model: true  
 
     # 2. Qdrant 向量数据库配置
     vectorstore:
@@ -27,8 +31,8 @@ spring:
 
 logging:
   level:
-    org.springframework.ai: DEBUG 
-    io.qdrant.client: INFO        
+    "[org.springframework.ai]": DEBUG
+    "[io.qdrant.client]": INFO
 
 mybatis:
   configuration:
