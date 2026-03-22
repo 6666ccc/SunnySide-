@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,6 +31,7 @@ public class ElderTool {
     private final AnnouncementService announcementService;
     private final ActivityParticipationService activityParticipationService;
     private final VisitAppointmentService visitAppointmentService;
+    private final ElderIdentityHelper elderIdentityHelper;
 
     // 获取当前时间
     @Tool(description = "获取系统当前日期时间。适用于用户询问“现在几点”“今天几号”等时间相关问题。返回值为ISO-8601格式的时间字符串。")
@@ -45,9 +45,9 @@ public class ElderTool {
     public String getElderLocation(
             @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
             @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef) {
-        Long resolvedElderId = resolveElderId(elderlyId, elderRef);
+        Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
         if (resolvedElderId == null) {
-            return unresolvedMessage(elderRef);
+            return elderIdentityHelper.unresolvedMessage(elderRef);
         }
         log.info("调用工具[getElderLocation]，elderId={}", elderlyId);
         String location = elderlyUserService.getElderLocation(resolvedElderId);
@@ -122,9 +122,9 @@ public class ElderTool {
             @ToolParam(description = "活动ID。") Long activityId,
             @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
             @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef) {
-        Long resolvedElderId = resolveElderId(elderlyId, elderRef);
+        Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
         if (resolvedElderId == null) {
-            return "报名失败，" + unresolvedMessage(elderRef);
+            return "报名失败，" + elderIdentityHelper.unresolvedMessage(elderRef);
         }
         log.info("调用工具[registerActivity]，elderId={}，activityId={}", resolvedElderId, activityId);
         String result = activityParticipationService.registerActivity(resolvedElderId, activityId);
@@ -137,9 +137,9 @@ public class ElderTool {
             @ToolParam(description = "活动ID。") Long activityId,
             @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
             @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef) {
-        Long resolvedElderId = resolveElderId(elderlyId, elderRef);
+        Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
         if (resolvedElderId == null) {
-            return "取消失败，" + unresolvedMessage(elderRef);
+            return "取消失败，" + elderIdentityHelper.unresolvedMessage(elderRef);
         }
         log.info("调用工具[cancelActivityRegistration]，elderId={}，activityId={}", resolvedElderId, activityId);
         String result = activityParticipationService.cancelActivityRegistration(resolvedElderId, activityId);
@@ -154,9 +154,9 @@ public class ElderTool {
             @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef) {
         try {
             LocalDate targetDate = LocalDate.parse(date);
-            Long resolvedElderId = resolveElderId(elderlyId, elderRef);
+            Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
             if (resolvedElderId == null) {
-                return "查询失败，" + unresolvedMessage(elderRef);
+                return "查询失败，" + elderIdentityHelper.unresolvedMessage(elderRef);
             }
             log.info("调用工具[getMyActivityRegistrations]，elderId={}，date={}", resolvedElderId, targetDate);
             List<UserActivityDTO> activities = activityParticipationService.getMyActivityRegistrations(resolvedElderId,
@@ -177,9 +177,9 @@ public class ElderTool {
     public String getVisitors(
             @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
             @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef) {
-        Long resolvedElderId = resolveElderId(elderlyId, elderRef);
+        Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
         if (resolvedElderId == null) {
-            return "查询失败，" + unresolvedMessage(elderRef);
+            return "查询失败，" + elderIdentityHelper.unresolvedMessage(elderRef);
         }
         log.info("调用工具[getVisitors]，elderId={}", resolvedElderId);
         List<VisitAppointment> visits = visitAppointmentService.getVisitors(resolvedElderId);
@@ -200,7 +200,7 @@ public class ElderTool {
             @ToolParam(description = "餐次类型：BREAKFAST、LUNCH、DINNER、SNACK。") String mealType) {
         try {
             LocalDate targetDate = LocalDate.parse(date);
-            String normalizedMealType = normalizeRequired(mealType);
+            String normalizedMealType = elderIdentityHelper.normalizeRequired(mealType);
             log.info("调用工具[getMenuByDateAndMeal]，date={}，mealType={}", targetDate, normalizedMealType);
             List<Menu> menus = menuService.getMenuByDateAndMeal(targetDate, normalizedMealType);
             if (menus == null || menus.isEmpty()) {
@@ -221,7 +221,7 @@ public class ElderTool {
             @ToolParam(description = "优先级，可选LOW、MEDIUM、HIGH；不填则不过滤。") String priority,
             @ToolParam(description = "是否只看有效公告。true为只看有效，false为不过滤。") Boolean activeOnly) {
         int normalizedLimit = (limit == null || limit <= 0) ? 5 : limit;
-        String normalizedPriority = normalizeOrNull(priority);
+        String normalizedPriority = elderIdentityHelper.normalizeOrNull(priority);
         Boolean normalizedActiveOnly = activeOnly == null ? Boolean.TRUE : activeOnly;
         log.info("调用工具[getAnnouncements]，limit={}，priority={}，activeOnly={}", normalizedLimit, normalizedPriority,
                 normalizedActiveOnly);
@@ -240,9 +240,9 @@ public class ElderTool {
     public String getHealthReminder(
             @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
             @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef) {
-        Long resolvedElderId = resolveElderId(elderlyId, elderRef);
+        Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
         if (resolvedElderId == null) {
-            return "查询失败，" + unresolvedMessage(elderRef);
+            return "查询失败，" + elderIdentityHelper.unresolvedMessage(elderRef);
         }
         log.info("调用工具[getHealthReminder]，elderId={}", resolvedElderId);
         String reminder = elderlyUserService.getHealthReminder(resolvedElderId);
@@ -252,69 +252,18 @@ public class ElderTool {
 
     @Tool(description = "解析老人身份线索并返回匹配结果。输入姓名、手机号后4位或老人ID。若唯一命中会明确给出老人ID；若重名会返回候选列表。")
     public String resolveElderIdentity(@ToolParam(description = "老人身份线索，例如姓名、手机号后4位或ID。") String elderRef) {
-        List<ElderlyUser> candidates = findCandidates(elderRef);
+        List<ElderlyUser> candidates = elderIdentityHelper.findCandidates(elderRef);
         if (candidates.isEmpty()) {
             return "未找到匹配老人，请补充姓名全称或手机号后4位。";
         }
         if (candidates.size() == 1) {
             ElderlyUser matched = candidates.get(0);
-            return "已匹配老人: " + formatElderBrief(matched) + "。后续调用可直接使用老人ID " + matched.getId() + "。";
+            return "已匹配老人: " + elderIdentityHelper.formatElderBrief(matched) + "。后续调用可直接使用老人ID " + matched.getId()
+                    + "。";
         }
         return "匹配到多位老人，请先确认具体对象: " + candidates.stream()
-                .map(this::formatElderBrief)
+                .map(elderIdentityHelper::formatElderBrief)
                 .collect(Collectors.joining("; "));
-    }
-
-    private String normalizeOrNull(String text) {
-        if (text == null || text.isBlank()) {
-            return null;
-        }
-        return text.trim().toUpperCase();
-    }
-
-    private String normalizeRequired(String text) {
-        if (text == null) {
-            return "";
-        }
-        return text.trim().toUpperCase();
-    }
-
-    private Long resolveElderId(Long elderlyId, String elderRef) {
-        if (elderlyId != null) {
-            return elderlyId;
-        }
-        List<ElderlyUser> candidates = findCandidates(elderRef);
-        if (candidates.size() == 1) {
-            return candidates.get(0).getId();
-        }
-        return null;
-    }
-
-    private List<ElderlyUser> findCandidates(String elderRef) {
-        if (elderRef == null || elderRef.isBlank()) {
-            return List.of();
-        }
-        return elderlyUserService.findByRef(elderRef).stream()
-                .sorted(Comparator.comparing(ElderlyUser::getId))
-                .toList();
-    }
-
-    private String unresolvedMessage(String elderRef) {
-        List<ElderlyUser> candidates = findCandidates(elderRef);
-        if (candidates.isEmpty()) {
-            return "未找到匹配老人，请提供老人姓名或手机号后4位。";
-        }
-        return "匹配到多位老人，请先确认具体对象: " + candidates.stream()
-                .map(this::formatElderBrief)
-                .collect(Collectors.joining("; "));
-    }
-
-    private String formatElderBrief(ElderlyUser elder) {
-        String phoneTail = "";
-        if (elder.getPhone() != null && elder.getPhone().length() >= 4) {
-            phoneTail = " 手机尾号:" + elder.getPhone().substring(elder.getPhone().length() - 4);
-        }
-        return "ID:" + elder.getId() + " 姓名:" + elder.getFullName() + phoneTail;
     }
 
 }

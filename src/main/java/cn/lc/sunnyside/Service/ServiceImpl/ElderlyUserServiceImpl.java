@@ -54,6 +54,11 @@ public class ElderlyUserServiceImpl implements ElderlyUserService {
         return elderlyUserMapper.selectBySurname(surname);
     }
 
+    /**
+     * 根据身份线索查询匹配的老人列表，支持姓名、手机号后4位等模糊匹配
+     * @param ref 身份线索
+     * @return 匹配的老人列表
+     */
     @Override
     public List<ElderlyUser> findByRef(String ref) {
         if (ref == null || ref.isBlank()) {

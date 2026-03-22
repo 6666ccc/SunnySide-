@@ -1,5 +1,6 @@
-package cn.lc.sunnyside.WebConfig;
+package cn.lc.sunnyside.Config;
 
+import cn.lc.sunnyside.Auth.FamilyJwtInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -25,6 +26,10 @@ public class WebConfig implements WebMvcConfigurer {
                 .maxAge(3600); // 预检请求缓存时间（秒）
     }
 
+    /**
+     * 添加 JWT 拦截器
+     * 用于验证请求中的 JWT 令牌
+     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(familyJwtInterceptor).addPathPatterns("/**");

@@ -1,4 +1,4 @@
-package cn.lc.sunnyside.AIConfig;
+package cn.lc.sunnyside.Config;
 
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
