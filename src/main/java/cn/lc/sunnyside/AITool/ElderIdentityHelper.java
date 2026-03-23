@@ -56,6 +56,9 @@ public class ElderIdentityHelper {
                 .collect(Collectors.joining("; "));
     }
 
+    /*
+     * 格式化老人简要信息，包含ID、姓名和手机号后4位（如果有）。
+     */
     public String formatElderBrief(ElderlyUser elder) {
         String phoneTail = "";
         if (elder.getPhone() != null && elder.getPhone().length() >= 4) {
@@ -64,6 +67,9 @@ public class ElderIdentityHelper {
         return "ID:" + elder.getId() + " 姓名:" + elder.getFullName() + phoneTail;
     }
 
+    /**
+     * 标准化字符串，将其转换为大写并去除首尾空格。如果字符串为空或仅包含空格，则返回null。
+     */
     public String normalizeOrNull(String text) {
         if (text == null || text.isBlank()) {
             return null;
@@ -71,6 +77,9 @@ public class ElderIdentityHelper {
         return text.trim().toUpperCase();
     }
 
+    /**
+     * 标准化字符串，将其转换为大写并去除首尾空格。如果字符串为空或仅包含空格，则返回空字符串。
+     */
     public String normalizeRequired(String text) {
         if (text == null) {
             return "";
@@ -78,6 +87,9 @@ public class ElderIdentityHelper {
         return text.trim().toUpperCase();
     }
 
+    /**
+     * 解析日期字符串为LocalDate对象，支持"yyyy-MM-dd"格式。如果字符串为空或仅包含空格，则返回null。
+     */
     public LocalDate parseDateOrNull(String text) {
         if (text == null || text.isBlank()) {
             return null;
@@ -85,6 +97,9 @@ public class ElderIdentityHelper {
         return LocalDate.parse(text.trim());
     }
 
+    /**
+     * 解析日期时间字符串为LocalDateTime对象，支持"yyyy-MM-dd HH:mm:ss"格式。如果字符串为空或仅包含空格，则返回null。
+     */
     public LocalDateTime parseDateTimeOrNull(String text) {
         if (text == null || text.isBlank()) {
             return null;

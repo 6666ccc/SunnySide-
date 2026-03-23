@@ -33,7 +33,6 @@ public class ElderTool {
     private final VisitAppointmentService visitAppointmentService;
     private final ElderIdentityHelper elderIdentityHelper;
 
-    // 获取当前时间
     @Tool(description = "获取系统当前日期时间。适用于用户询问“现在几点”“今天几号”等时间相关问题。返回值为ISO-8601格式的时间字符串。")
     public String getCurrentTime() {
         String now = LocalDateTime.now().toString();
@@ -53,6 +52,28 @@ public class ElderTool {
         String location = elderlyUserService.getElderLocation(resolvedElderId);
         log.info("工具[getElderLocation]返回位置={}", location);
         return location;
+    }
+
+    @Tool(description = "查询老人基础信息。支持输入老人ID，或输入老人姓名/手机号后4位等身份线索。")
+    public String getElderProfile(
+            @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
+            @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef) {
+        Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
+        if (resolvedElderId == null) {
+            return "查询失败，" + elderIdentityHelper.unresolvedMessage(elderRef);
+        }
+        ElderlyUser elder = elderlyUserService.getById(resolvedElderId);
+        if (elder == null) {
+            return "查询失败，未找到该老人信息。";
+        }
+        String phoneTail = "未知";
+        if (elder.getPhone() != null && elder.getPhone().length() >= 4) {
+            phoneTail = elder.getPhone().substring(elder.getPhone().length() - 4);
+        }
+        return "老人信息：ID:" + elder.getId()
+                + "，姓名:" + elder.getFullName()
+                + "，性别:" + (elder.getGender() == null ? "未知" : elder.getGender())
+                + "，手机号后4位:" + phoneTail;
     }
 
     @Tool(description = "查询当前餐次菜单。返回菜品名称及可用营养说明，多个菜品以逗号分隔；无数据时返回“当前没有菜单信息”。")
@@ -192,6 +213,35 @@ public class ElderTool {
                 .collect(Collectors.joining("; "));
         log.info("工具[getVisitors]返回预约数量={}", visits.size());
         return visitorText;
+    }
+
+    @Tool(description = "按条件查询某位老人的来访预约。支持按状态和时间范围过滤，便于后续取消预约。")
+    public String queryMyVisitAppointments(
+            @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
+            @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef,
+            @ToolParam(description = "预约状态，可选：PENDING、APPROVED、CANCELED、DONE；不填则不过滤。") String status,
+            @ToolParam(description = "开始时间，ISO格式，例如2023-10-01T00:00:00；不填则不限。") String from,
+            @ToolParam(description = "结束时间，ISO格式，例如2023-10-31T23:59:59；不填则不限。") String to) {
+        try {
+            Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
+            if (resolvedElderId == null) {
+                return "查询失败，" + elderIdentityHelper.unresolvedMessage(elderRef);
+            }
+            LocalDateTime fromTime = elderIdentityHelper.parseDateTimeOrNull(from);
+            LocalDateTime toTime = elderIdentityHelper.parseDateTimeOrNull(to);
+            String normalizedStatus = elderIdentityHelper.normalizeOrNull(status);
+            List<VisitAppointment> visits = visitAppointmentService.queryVisitAppointments(
+                    resolvedElderId, normalizedStatus, fromTime, toTime);
+            if (visits == null || visits.isEmpty()) {
+                return "没有符合条件的来访预约。";
+            }
+            return visits.stream()
+                    .map(v -> "预约ID:" + v.getId() + " " + v.getVisitorName() + " (" + v.getRelation() + ") 来访时间: "
+                            + v.getVisitTime() + " 状态: " + v.getStatus())
+                    .collect(Collectors.joining("; "));
+        } catch (DateTimeParseException e) {
+            return "查询失败，时间格式错误，请使用ISO格式，例如2023-10-01T10:00:00。";
+        }
     }
 
     @Tool(description = "按日期和餐次查询菜单。日期格式yyyy-MM-dd，餐次可选BREAKFAST、LUNCH、DINNER、SNACK。")

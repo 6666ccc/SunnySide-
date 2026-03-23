@@ -108,7 +108,7 @@ public class RelativesTool {
             @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef,
             @ToolParam(description = "开始日期，格式yyyy-MM-dd；不填默认今天。") String startDate,
             @ToolParam(description = "结束日期，格式yyyy-MM-dd；不填默认与开始日期一致。") String endDate) {
-        //尝试解析老人ID，如果无法解析则返回错误信息
+        // 尝试解析老人ID，如果无法解析则返回错误信息
         Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
         if (resolvedElderId == null) {
             return "查询失败，" + elderIdentityHelper.unresolvedMessage(elderRef);
@@ -126,6 +126,26 @@ public class RelativesTool {
         } catch (DateTimeParseException e) {
             return "查询失败，日期格式错误，请使用yyyy-MM-dd。";
         }
+    }
+
+    @Tool(description = "校验当前登录家属是否已绑定某位老人。支持老人ID或身份线索。")
+    public String checkFamilyElderAccess(
+            @ToolParam(description = "家属手机号参数已废弃，将自动使用当前登录家属身份。") String familyPhone,
+            @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
+            @ToolParam(description = "老人身份线索，如姓名、手机号后4位等。ID不清楚时使用。") String elderRef) {
+        Long resolvedElderId = elderIdentityHelper.resolveElderId(elderlyId, elderRef);
+        if (resolvedElderId == null) {
+            return "校验失败，" + elderIdentityHelper.unresolvedMessage(elderRef);
+        }
+        String resolvedFamilyPhone = resolveFamilyPhone(familyPhone);
+        if (resolvedFamilyPhone == null) {
+            return "校验失败，请先登录家属账号。";
+        }
+        boolean canAccess = familyAccessService.canAccessElder(resolvedFamilyPhone, resolvedElderId);
+        if (!canAccess) {
+            return "未绑定：当前登录家属与该老人不存在绑定关系。";
+        }
+        return "已绑定：当前登录家属可访问该老人信息。";
     }
 
     @Tool(description = "家属查询老人某日概览。仅支持已登录家属身份，并提供日期与老人信息。")
