@@ -52,6 +52,19 @@
         </dependency>
 
 
+<!--引入胡图工具箱实现验证码-->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-captcha</artifactId>
+            <version>5.8.26</version>
+        </dependency>
+
+        <!--引入redis-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- DashScope ChatModel 支持（如果使用其他模型，请跳转 Spring AI 文档选择对应的 starter） -->
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>

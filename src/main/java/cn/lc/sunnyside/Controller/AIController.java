@@ -32,6 +32,7 @@ public class AIController {
         return aiService.elderChat(userInput, conversationId);
     }
 
+
     /**
      * 家属端对话接口：根据用户输入及会话ID返回单次回复
      * 支持 userId / UserID 双写兼容，优先取 userId

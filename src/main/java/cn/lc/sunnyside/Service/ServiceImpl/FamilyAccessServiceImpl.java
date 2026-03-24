@@ -1,6 +1,8 @@
 package cn.lc.sunnyside.Service.ServiceImpl;
 
 import cn.lc.sunnyside.POJO.DO.Announcement;
+import cn.lc.sunnyside.POJO.DO.ElderlyUser;
+import cn.lc.sunnyside.POJO.DO.FamilyElderRelation;
 import cn.lc.sunnyside.POJO.DO.FamilyUser;
 import cn.lc.sunnyside.POJO.DO.Menu;
 import cn.lc.sunnyside.POJO.DO.VisitAppointment;
@@ -8,6 +10,7 @@ import cn.lc.sunnyside.POJO.DTO.UserActivityDTO;
 import cn.lc.sunnyside.Service.FamilyAccessService;
 import cn.lc.sunnyside.mapper.ActivityParticipationMapper;
 import cn.lc.sunnyside.mapper.AnnouncementMapper;
+import cn.lc.sunnyside.mapper.ElderlyUserMapper;
 import cn.lc.sunnyside.mapper.FamilyElderRelationMapper;
 import cn.lc.sunnyside.mapper.FamilyUserMapper;
 import cn.lc.sunnyside.mapper.MenuMapper;
@@ -18,7 +21,10 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -32,6 +38,7 @@ public class FamilyAccessServiceImpl implements FamilyAccessService {
     private final MenuMapper menuMapper;
     private final AnnouncementMapper announcementMapper;
     private final VisitAppointmentMapper visitAppointmentMapper;
+    private final ElderlyUserMapper elderlyUserMapper;
 
     @Override
     public boolean canAccessElder(String familyPhone, Long elderId) {
@@ -72,6 +79,62 @@ public class FamilyAccessServiceImpl implements FamilyAccessService {
                         .collect(Collectors.joining("、"));
         return "日期:" + targetDate + "\n活动:" + activityText + "\n菜单:" + menuText + "\n公告:" + announcementText + "\n探访:"
                 + visitText;
+    }
+
+    @Override
+    public Long resolveDefaultElderId(String familyPhone) {
+        FamilyUser familyUser = familyUserMapper.selectByPhone(normalizePhone(familyPhone));
+        if (familyUser == null) {
+            return null;
+        }
+        List<FamilyElderRelation> relations = familyElderRelationMapper.selectByFamilyId(familyUser.getId());
+        if (relations == null || relations.isEmpty()) {
+            return null;
+        }
+        List<FamilyElderRelation> primaryRelations = relations.stream()
+                .filter(item -> Boolean.TRUE.equals(item.getIsPrimaryContact()))
+                .toList();
+        if (primaryRelations.size() == 1) {
+            return primaryRelations.get(0).getElderId();
+        }
+        if (relations.size() == 1) {
+            return relations.get(0).getElderId();
+        }
+        return null;
+    }
+
+    @Override
+    public String buildBoundElderContext(String familyPhone) {
+        FamilyUser familyUser = familyUserMapper.selectByPhone(normalizePhone(familyPhone));
+        if (familyUser == null) {
+            return "未识别到有效家属账号。";
+        }
+        List<FamilyElderRelation> relations = familyElderRelationMapper.selectByFamilyId(familyUser.getId());
+        if (relations == null || relations.isEmpty()) {
+            return "当前家属暂无已绑定老人。";
+        }
+        Map<Long, FamilyElderRelation> relationByElder = relations.stream()
+                .collect(Collectors.toMap(FamilyElderRelation::getElderId, item -> item, (a, b) -> a,
+                        LinkedHashMap::new));
+        List<String> elderSummaries = relationByElder.values().stream()
+                .sorted(Comparator.comparing(FamilyElderRelation::getIsPrimaryContact,
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(FamilyElderRelation::getElderId))
+                .map(rel -> {
+                    ElderlyUser elder = elderlyUserMapper.selectById(rel.getElderId());
+                    if (elder == null) {
+                        return "ID:" + rel.getElderId();
+                    }
+                    String name = elder.getFullName() == null ? "未知" : elder.getFullName();
+                    return "ID:" + elder.getId() + " 姓名:" + name
+                            + (Boolean.TRUE.equals(rel.getIsPrimaryContact()) ? "(默认)" : "");
+                })
+                .toList();
+        Long defaultElderId = resolveDefaultElderId(familyPhone);
+        if (defaultElderId != null) {
+            return "已绑定老人:" + String.join("；", elderSummaries) + "。默认老人ID=" + defaultElderId + "，未指定老人时优先使用该对象。";
+        }
+        return "已绑定老人:" + String.join("；", elderSummaries) + "。当前存在多位绑定老人，请优先让用户提供姓名或手机号后4位。";
     }
 
     private List<String> collectMenus(LocalDate date) {

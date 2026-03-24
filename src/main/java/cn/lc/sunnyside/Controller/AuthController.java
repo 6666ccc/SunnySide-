@@ -4,6 +4,7 @@ import cn.lc.sunnyside.POJO.DTO.FamilyAuthDTO;
 import cn.lc.sunnyside.Service.FamilyAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/auth/family")
 public class AuthController {
     private final FamilyAuthService familyAuthService;
+
+    @GetMapping("/captcha")
+    public FamilyAuthDTO.FamilyCaptchaResponse captcha() {
+        return familyAuthService.createCaptcha();
+    }
 
     @PostMapping("/login")
     public FamilyAuthDTO.FamilyLoginResponse login(@RequestBody FamilyAuthDTO.FamilyLoginRequest request) {

@@ -11,6 +11,11 @@ spring:
     url: jdbc:mysql://localhost:3306/sunnyside?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
     username: ${DB_USERNAME:root}       # 默认 root，生产环境请配置环境变量 DB_USERNAME
     password: ${DB_PASSWORD:123456789}  # 默认 123456789，生产环境请配置环境变量 DB_PASSWORD
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 60s
 
   ai:
     dashscope:
@@ -42,6 +47,13 @@ mybatis:
 
 app:
   auth:
+    captcha:
+      prefix: ${APP_AUTH_CAPTCHA_PREFIX:auth:family:captcha:}
+      ttl-seconds: ${APP_AUTH_CAPTCHA_TTL_SECONDS:120}
+      width: ${APP_AUTH_CAPTCHA_WIDTH:160}
+      height: ${APP_AUTH_CAPTCHA_HEIGHT:60}
+      code-count: ${APP_AUTH_CAPTCHA_CODE_COUNT:4}
+      interfere-count: ${APP_AUTH_CAPTCHA_INTERFERE_COUNT:20}
     jwt:
       secret: ${APP_JWT_SECRET:sunnyside-dev-jwt-secret}
       issuer: ${APP_JWT_ISSUER:sunnyside}

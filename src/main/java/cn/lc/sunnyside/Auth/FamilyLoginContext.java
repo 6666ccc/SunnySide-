@@ -12,6 +12,6 @@ public record FamilyLoginContext(Long familyId, String phone, String username) {
      * 判断当前上下文是否可用于业务鉴权。
      */
     public boolean isValid() {
-        return familyId != null && phone != null && !phone.isBlank();
+        return familyId != null;
     }
 }

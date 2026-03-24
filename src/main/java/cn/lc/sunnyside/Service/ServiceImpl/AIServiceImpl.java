@@ -5,6 +5,7 @@ import cn.lc.sunnyside.AITool.RelativesTool;
 import cn.lc.sunnyside.Auth.FamilyLoginContextHolder;
 import cn.lc.sunnyside.POJO.DTO.ChatReply;
 import cn.lc.sunnyside.Service.AIService;
+import cn.lc.sunnyside.Service.FamilyAccessService;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -36,6 +37,7 @@ public class AIServiceImpl implements AIService {
     private final ChatClient chatClient;
     private final ElderTool elderTool;
     private final RelativesTool relativesTool;
+    private final FamilyAccessService familyAccessService;
 
     @Value("classpath:prompts/system.st")
     private Resource systemPrompt;
@@ -45,14 +47,20 @@ public class AIServiceImpl implements AIService {
 
     public AIServiceImpl(ChatClient.Builder builder, ChatMemory chatMemory, ElderTool elderTool,
             RelativesTool relativesTool,
+            FamilyAccessService familyAccessService,
             VectorStore vectorStore) {
         this.elderTool = elderTool;
         this.relativesTool = relativesTool;
+        this.familyAccessService = familyAccessService;
+        
         this.chatClient = builder
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .defaultAdvisors(
                         QuestionAnswerAdvisor.builder(vectorStore)
-                                .searchRequest(SearchRequest.builder().build())
+                                .searchRequest(SearchRequest.builder()
+                                        .topK(4)
+                                        .similarityThreshold(0.72)
+                                        .build())
                                 .build())
                 .build();
     }
@@ -148,7 +156,8 @@ public class AIServiceImpl implements AIService {
         SystemPromptTemplate systemPromptTemplate = new SystemPromptTemplate(promptResource);
         String familyContext = FamilyLoginContextHolder.get()
                 .map(context -> "当前请求已登录家属信息：familyId=" + context.familyId() + "，familyPhone=" + context.phone()
-                        + "。当调用家属相关工具时，优先使用该身份，不要再向用户追问手机号。")
+                        + "。" + familyAccessService.buildBoundElderContext(context.phone())
+                        + " 当调用家属相关工具时，优先使用登录态与默认绑定老人，不要再向用户追问手机号。")
                 .orElse("当前请求未识别到已登录家属身份。");
         Message systemMessage = systemPromptTemplate
                 .createMessage(Map.of(
