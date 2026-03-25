@@ -1,5 +1,0 @@
-- [x] `InputProcessNode` 成功创建并实现了 `NodeAction` 接口，包含中文注释。
-- [x] `LLMProcessNode` 成功创建并实现了核心逻辑（调用 LLM），包含中文注释。
-- [x] `SunnySideWorkflowService` 成功创建并使用 Graph API 正确编排了 Node 和 Edge。
-- [x] `WorkflowController` 成功创建并提供了可调用的 REST 接口。
-- [x] 整体工作流能够正常接收请求、在节点间流转并返回最终结果。

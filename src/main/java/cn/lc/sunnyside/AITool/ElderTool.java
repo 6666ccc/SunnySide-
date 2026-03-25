@@ -70,9 +70,13 @@ public class ElderTool {
         if (elder.getPhone() != null && elder.getPhone().length() >= 4) {
             phoneTail = elder.getPhone().substring(elder.getPhone().length() - 4);
         }
+        String gender = "未知";
+        if (elder.getGender() != null) {
+            gender = elder.getGender();
+        }
         return "老人信息：ID:" + elder.getId()
                 + "，姓名:" + elder.getFullName()
-                + "，性别:" + (elder.getGender() == null ? "未知" : elder.getGender())
+                + "，性别:" + gender
                 + "，手机号后4位:" + phoneTail;
     }
 
@@ -85,8 +89,13 @@ public class ElderTool {
             return "当前没有菜单信息。";
         }
         String menuText = menus.stream()
-                .map(menu -> menu.getDishName()
-                        + (menu.getNutritionNotes() != null ? " (" + menu.getNutritionNotes() + ")" : ""))
+                .map(menu -> {
+                    String notes = "";
+                    if (menu.getNutritionNotes() != null) {
+                        notes = " (" + menu.getNutritionNotes() + ")";
+                    }
+                    return menu.getDishName() + notes;
+                })
                 .collect(Collectors.joining(", "));
         log.info("工具[getCurrentMenu]返回菜单条数={}", menus.size());
         return menuText;
@@ -257,8 +266,13 @@ public class ElderTool {
                 return "该日期该餐次没有菜单信息。";
             }
             return menus.stream()
-                    .map(menu -> menu.getDishName()
-                            + (menu.getNutritionNotes() != null ? " (" + menu.getNutritionNotes() + ")" : ""))
+                    .map(menu -> {
+                        String notes = "";
+                        if (menu.getNutritionNotes() != null) {
+                            notes = " (" + menu.getNutritionNotes() + ")";
+                        }
+                        return menu.getDishName() + notes;
+                    })
                     .collect(Collectors.joining(", "));
         } catch (DateTimeParseException e) {
             return "查询失败，日期格式错误，请使用yyyy-MM-dd。";
@@ -270,9 +284,15 @@ public class ElderTool {
             @ToolParam(description = "返回条数，例如5。") Integer limit,
             @ToolParam(description = "优先级，可选LOW、MEDIUM、HIGH；不填则不过滤。") String priority,
             @ToolParam(description = "是否只看有效公告。true为只看有效，false为不过滤。") Boolean activeOnly) {
-        int normalizedLimit = (limit == null || limit <= 0) ? 5 : limit;
+        int normalizedLimit = 5;
+        if (limit != null && limit > 0) {
+            normalizedLimit = limit;
+        }
         String normalizedPriority = elderIdentityHelper.normalizeOrNull(priority);
-        Boolean normalizedActiveOnly = activeOnly == null ? Boolean.TRUE : activeOnly;
+        Boolean normalizedActiveOnly = Boolean.TRUE;
+        if (activeOnly != null) {
+            normalizedActiveOnly = activeOnly;
+        }
         log.info("调用工具[getAnnouncements]，limit={}，priority={}，activeOnly={}", normalizedLimit, normalizedPriority,
                 normalizedActiveOnly);
         List<Announcement> announcements = announcementService.getAnnouncements(normalizedLimit, normalizedPriority,

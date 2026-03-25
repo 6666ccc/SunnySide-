@@ -53,17 +53,27 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
     @Value("${app.auth.captcha.interfere-count:20}")
     private Integer captchaInterfereCount;
 
+    /**
+     * 创建并返回家属登录所需要的图形验证码
+     *
+     * @return 包含验证码ID、Base64格式图片和过期时间的响应对象
+     */
     @Override
     public FamilyAuthDTO.FamilyCaptchaResponse createCaptcha() {
+        // 读取并规范化验证码配置参数
         int width = normalizePositive(captchaWidth, 160);
         int height = normalizePositive(captchaHeight, 60);
         int codeCount = normalizePositive(captchaCodeCount, 4);
         int interfereCount = normalizePositive(captchaInterfereCount, 20);
         long ttlSeconds = normalizeCaptchaTtlSeconds(captchaTtlSeconds);
         LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(ttlSeconds);
+
+        // 生成圆形干扰验证码
         CircleCaptcha captcha = CaptchaUtil.createCircleCaptcha(width, height, codeCount, interfereCount);
         String captchaId = UUID.randomUUID().toString().replace("-", "");
         String code = captcha.getCode();
+
+        // 将验证码文本存入 Redis 缓存，用于后续校验
         try {
             stringRedisTemplate.opsForValue().set(buildCaptchaKey(captchaId), code.toUpperCase(),
                     Duration.ofSeconds(ttlSeconds));
@@ -73,23 +83,39 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
         return new FamilyAuthDTO.FamilyCaptchaResponse(captchaId, toBase64(captcha), expiresAt);
     }
 
+    /**
+     * 家属登录逻辑，包括验证码校验和账号密码比对，并签发 JWT
+     *
+     * @param request 包含账号、密码、验证码等信息的登录请求
+     * @return 包含签发的 JWT Token 及家属基本信息的响应对象
+     */
     @Override
     public FamilyAuthDTO.FamilyLoginResponse login(FamilyAuthDTO.FamilyLoginRequest request) {
+        // 校验基本参数是否为空
         if (request == null || isBlank(request.account()) || isBlank(request.password())
                 || isBlank(request.captchaId()) || isBlank(request.captchaCode())) {
             throw new IllegalArgumentException("账号、密码和验证码不能为空。");
         }
+
+        // 校验验证码的正确性
         verifyCaptcha(request.captchaId(), request.captchaCode());
+
         if (isBlank(jwtSecret)) {
             throw new IllegalStateException("服务端未配置JWT密钥。");
         }
+
+        // 查询数据库确认家属账号是否存在
         FamilyUser familyUser = findByAccount(request.account());
         if (familyUser == null || isBlank(familyUser.getPassword())) {
             throw new IllegalArgumentException("账号或密码错误。");
         }
+
+        // 校验密码（目前为明文比对，后续建议引入加密哈希校验）
         if (!familyUser.getPassword().equals(request.password().trim())) {
             throw new IllegalArgumentException("账号或密码错误。");
         }
+
+        // 签发 JWT Token，携带家属的标识信息
         long ttlHours = normalizeTtlHours(jwtExpireHours);
         LocalDateTime expiresAt = LocalDateTime.now().plusHours(ttlHours);
         String token = JWT.create()
@@ -99,6 +125,7 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
                 .withClaim("familyUsername", familyUser.getUsername())
                 .withExpiresAt(expiresAt.atZone(ZoneId.systemDefault()).toInstant())
                 .sign(Algorithm.HMAC256(jwtSecret));
+
         return new FamilyAuthDTO.FamilyLoginResponse(
                 token,
                 "Bearer",
@@ -109,6 +136,12 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
                 familyUser.getFullName());
     }
 
+    /**
+     * 根据账号查询家属信息，优先按照手机号匹配，若无则按用户名匹配
+     *
+     * @param account 输入的账号（手机号或用户名）
+     * @return 匹配的家属用户对象，不存在则返回 null
+     */
     private FamilyUser findByAccount(String account) {
         String normalized = account.trim();
         FamilyUser byPhone = familyUserMapper.selectByPhone(normalized);
@@ -118,36 +151,69 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
         return familyUserMapper.selectByUsername(normalized);
     }
 
+    /**
+     * 判空辅助方法
+     *
+     * @param value 字符串内容
+     * @return true 如果为空或纯空白字符，否则 false
+     */
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
 
+    /**
+     * 构建验证码在 Redis 中的缓存 Key
+     *
+     * @param captchaId 验证码ID
+     * @return Redis 缓存 Key
+     */
     private String buildCaptchaKey(String captchaId) {
-        String prefix = isBlank(captchaPrefix) ? "auth:family:captcha:" : captchaPrefix.trim();
+        String prefix = "auth:family:captcha:";
+        if (!isBlank(captchaPrefix)) {
+            prefix = captchaPrefix.trim();
+        }
         return prefix + captchaId.trim();
     }
 
+    /**
+     * 校验图形验证码是否正确，并在校验后清理缓存（无论成功失败，防止复用）
+     *
+     * @param captchaId   验证码ID
+     * @param captchaCode 用户输入的验证码文本
+     */
     private void verifyCaptcha(String captchaId, String captchaCode) {
         String key = buildCaptchaKey(captchaId);
         String codeInRedis;
         try {
+            // 从 Redis 中获取对应的验证码文本
             codeInRedis = stringRedisTemplate.opsForValue().get(key);
         } catch (Exception ex) {
             throw new IllegalStateException("验证码服务暂不可用，请稍后重试。");
         }
+
         if (isBlank(codeInRedis)) {
             throw new IllegalArgumentException("验证码不存在或已过期。");
         }
+
         String normalizedInput = captchaCode.trim().toUpperCase();
+
+        // 验证码验证一次后立即删除，防止被暴力破解和复用
         try {
             stringRedisTemplate.delete(key);
         } catch (Exception ignored) {
         }
+
         if (!codeInRedis.equals(normalizedInput)) {
             throw new IllegalArgumentException("验证码错误。");
         }
     }
 
+    /**
+     * 将验证码图片对象转换为前端可直接使用的 Base64 数据 URL
+     *
+     * @param captcha 验证码对象
+     * @return Data URL 格式的 Base64 字符串
+     */
     private String toBase64(CircleCaptcha captcha) {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         captcha.write(outputStream);

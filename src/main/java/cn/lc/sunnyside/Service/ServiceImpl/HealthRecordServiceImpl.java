@@ -29,25 +29,34 @@ public class HealthRecordServiceImpl implements HealthRecordService {
      *
      * @param familyPhone 家属账号
      * @param elderId     老人ID
-     * @param startDate   开始日期（可选）
-     * @param endDate     结束日期（可选）
-     * @return 健康记录详情或错误信息
+     * @param startDate   开始日期（可选，默认当天）
+     * @param endDate     结束日期（可选，默认当天）
+     * @return 健康记录详情（包含最近记录与各指标均值）或错误提示信息
      */
     @Override
     public String queryElderHealth(String familyPhone, Long elderId, LocalDate startDate, LocalDate endDate) {
-        // 根据家属账号查询家属信息
+        // 根据家属账号查询家属信息，验证家属存在性
         FamilyUser familyUser = familyUserMapper.selectByPhone(normalizePhone(familyPhone));
         if (familyUser == null || elderId == null) {
             return "查询失败，家属账号或老人信息无效。";
         }
+
+        // 校验家属和老人之间是否存在绑定关系，确保数据访问权限
         Integer count = familyElderRelationMapper.existsRelation(familyUser.getId(), elderId);
         if (count == null || count <= 0) {
             return "查询失败，家属与老人不存在绑定关系。";
         }
 
-        LocalDate normalizedStart = startDate == null ? LocalDate.now() : startDate;
-        LocalDate normalizedEnd = endDate == null ? normalizedStart : endDate;
-        // 确保开始日期不晚于结束日期
+        // 处理并规范化查询时间范围，若未提供则默认查询当天的记录
+        LocalDate normalizedStart = LocalDate.now();
+        if (startDate != null) {
+            normalizedStart = startDate;
+        }
+        LocalDate normalizedEnd = normalizedStart;
+        if (endDate != null) {
+            normalizedEnd = endDate;
+        }
+        // 确保开始日期不晚于结束日期，自动纠正参数顺序
         if (normalizedStart.isAfter(normalizedEnd)) {
             LocalDate temp = normalizedStart;
             normalizedStart = normalizedEnd;
@@ -55,21 +64,24 @@ public class HealthRecordServiceImpl implements HealthRecordService {
         }
 
         // 根据老人ID和时间范围查询健康记录
-        List<HealthRecord> records = healthRecordMapper.selectByElderIdAndDateRange(elderId, normalizedStart,normalizedEnd);
+        List<HealthRecord> records = healthRecordMapper.selectByElderIdAndDateRange(elderId, normalizedStart,
+                normalizedEnd);
         if (records == null || records.isEmpty()) {
             return "该时间范围没有健康记录。";
         }
-        
-        // 查找最新的健康记录
+
+        // 查找最新的一条健康记录，按照记录日期和时间进行排序
         HealthRecord latest = records.stream()
                 .max(Comparator.comparing(HealthRecord::getRecordDate).thenComparing(HealthRecord::getRecordTime))
                 .orElse(records.get(0));
-        // 计算平均值
+
+        // 计算各项生理指标在查询时间段内的平均值
         String avgHeartRate = averageInt(records.stream().map(HealthRecord::getHeartRate).toList());
         String avgSystolic = averageInt(records.stream().map(HealthRecord::getSystolicBp).toList());
         String avgDiastolic = averageInt(records.stream().map(HealthRecord::getDiastolicBp).toList());
         String avgBloodSugar = averageDecimal(records.stream().map(HealthRecord::getBloodSugar).toList());
 
+        // 拼接返回结果
         return "时间范围:" + normalizedStart + "至" + normalizedEnd +
                 "\n记录条数:" + records.size() +
                 "\n最近一次: 日期" + latest.getRecordDate() + " 时间" + latest.getRecordTime() +
@@ -88,7 +100,10 @@ public class HealthRecordServiceImpl implements HealthRecordService {
      */
     private String averageInt(List<Integer> values) {
         OptionalDouble optionalDouble = values.stream().filter(v -> v != null).mapToInt(Integer::intValue).average();
-        return optionalDouble.isPresent() ? String.format("%.1f", optionalDouble.getAsDouble()) : "-";
+        if (optionalDouble.isPresent()) {
+            return String.format("%.1f", optionalDouble.getAsDouble());
+        }
+        return "-";
     }
 
     /**
@@ -106,8 +121,17 @@ public class HealthRecordServiceImpl implements HealthRecordService {
         return sum.divide(BigDecimal.valueOf(valid.size()), 2, RoundingMode.HALF_UP).toPlainString();
     }
 
+    /**
+     * 将对象转换为文本，处理空值情况
+     *
+     * @param value 任意对象值
+     * @return 转换后的字符串，如果对象为空则返回 "-"
+     */
     private String toText(Object value) {
-        return value == null ? "-" : String.valueOf(value);
+        if (value == null) {
+            return "-";
+        }
+        return String.valueOf(value);
     }
 
     /**
@@ -117,6 +141,9 @@ public class HealthRecordServiceImpl implements HealthRecordService {
      * @return 归一化后的手机号
      */
     private String normalizePhone(String phone) {
-        return phone == null ? null : phone.trim();
+        if (phone == null) {
+            return null;
+        }
+        return phone.trim();
     }
 }

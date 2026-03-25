@@ -1,12 +1,19 @@
 package cn.lc.sunnyside.Workflow.Health;
 
+import cn.lc.sunnyside.Service.FamilyAccessService;
+import cn.lc.sunnyside.Service.HealthRecordService;
 import com.alibaba.cloud.ai.graph.CompiledGraph;
 import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.action.AsyncNodeAction;
-
+import com.alibaba.cloud.ai.graph.action.NodeAction;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -19,6 +26,131 @@ public class HealthWorkflowService {
 
     private final CompiledGraph workflow;
 
+    @Component
+    public static class AnalyzeIntentNode implements NodeAction {
+        private final ChatClient chatClient;
+        private final ObjectMapper objectMapper = new ObjectMapper();
+
+        public AnalyzeIntentNode(ChatClient.Builder builder) {
+            this.chatClient = builder.build();
+        }
+
+        @Override
+        public Map<String, Object> apply(OverAllState state) throws Exception {
+            String query = state.value("query").map(Object::toString).orElse("");
+            Map<String, Object> result = new HashMap<>();
+
+            String prompt = String.format(
+                    "请分析用户的输入，判断是否在询问老人的健康状况。\n" +
+                            "请严格返回如下JSON格式，不要包含任何Markdown标记或其他说明文本：\n" +
+                            "{\"is_health_query\": true/false, \"target_date\": \"yyyy-MM-dd\"}\n" +
+                            "如果用户没有明确说明日期，默认使用今天（%s）。\n" +
+                            "用户输入：%s",
+                    LocalDate.now().toString(), query);
+
+            String jsonResponse = chatClient.prompt().user(prompt).call().content();
+
+            try {
+                jsonResponse = jsonResponse.replace("```json", "").replace("```", "").trim();
+                JsonNode jsonNode = objectMapper.readTree(jsonResponse);
+                JsonNode isHealthQueryNode = jsonNode.get("is_health_query");
+                boolean isHealthQuery = isHealthQueryNode != null && isHealthQueryNode.asBoolean();
+                JsonNode targetDateNode = jsonNode.get("target_date");
+                String targetDate = (targetDateNode != null && !targetDateNode.isNull()) ? targetDateNode.asText()
+                        : LocalDate.now().toString();
+
+                result.put("is_health_query", isHealthQuery);
+                result.put("target_date", targetDate);
+            } catch (Exception e) {
+                result.put("is_health_query", false);
+            }
+            return result;
+        }
+    }
+
+    @Component
+    public static class FetchHealthDataNode implements NodeAction {
+        private final FamilyAccessService familyAccessService;
+        private final HealthRecordService healthRecordService;
+
+        public FetchHealthDataNode(FamilyAccessService familyAccessService, HealthRecordService healthRecordService) {
+            this.familyAccessService = familyAccessService;
+            this.healthRecordService = healthRecordService;
+        }
+
+        @Override
+        public Map<String, Object> apply(OverAllState state) throws Exception {
+            Map<String, Object> result = new HashMap<>();
+            boolean isHealthQuery = state.value("is_health_query").map(o -> (Boolean) o).orElse(false);
+
+            if (isHealthQuery) {
+                String phone = state.value("familyPhone").map(Object::toString).orElse(null);
+                if (phone == null || phone.isBlank()) {
+                    result.put("error", "未获取到家属手机号，请先登录或提供手机号。");
+                    return result;
+                }
+
+                Long elderId = familyAccessService.resolveDefaultElderId(phone);
+                if (elderId == null) {
+                    result.put("error", "未找到您绑定的老人信息，请确认绑定关系。");
+                    return result;
+                }
+
+                String dateStr = state.value("target_date").map(Object::toString).orElse(null);
+                LocalDate targetDate;
+                try {
+                    targetDate = LocalDate.parse(dateStr);
+                } catch (Exception e) {
+                    targetDate = LocalDate.now();
+                }
+
+                String healthData = healthRecordService.queryElderHealth(phone, elderId, targetDate, targetDate);
+                result.put("health_data", healthData);
+            }
+            return result;
+        }
+    }
+
+    @Component
+    public static class GenerateReplyNode implements NodeAction {
+        private final ChatClient chatClient;
+
+        public GenerateReplyNode(ChatClient.Builder builder) {
+            this.chatClient = builder.build();
+        }
+
+        @Override
+        public Map<String, Object> apply(OverAllState state) throws Exception {
+            Map<String, Object> result = new HashMap<>();
+            String query = state.value("query").map(Object::toString).orElse("");
+            String error = state.value("error").map(Object::toString).orElse(null);
+
+            if (error != null) {
+                result.put("final_reply", error);
+                return result;
+            }
+
+            boolean isHealthQuery = state.value("is_health_query").map(o -> (Boolean) o).orElse(false);
+            String answer;
+
+            if (isHealthQuery) {
+                String healthData = state.value("health_data").map(Object::toString).orElse("");
+                String prompt = String.format(
+                        "你是一个养老院的专属健康助手，语气要温柔、关切、专业。\n" +
+                                "请根据以下由系统查询到的老人真实健康数据，回答家属的提问。\n\n" +
+                                "家属提问：%s\n" +
+                                "健康数据：%s\n\n" +
+                                "请直接给出回复，不要说多余的废话，不要暴露系统查询的底层细节。",
+                        query, healthData);
+                answer = chatClient.prompt().user(prompt).call().content();
+            } else {
+                answer = chatClient.prompt().user(query).call().content();
+            }
+
+            result.put("final_reply", answer);
+            return result;
+        }
+    }
 
     public HealthWorkflowService(AnalyzeIntentNode analyzeNode,
             FetchHealthDataNode fetchNode,

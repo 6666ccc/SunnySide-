@@ -2,7 +2,7 @@ package cn.lc.sunnyside.Service.ServiceImpl;
 
 import cn.lc.sunnyside.AITool.ElderTool;
 import cn.lc.sunnyside.AITool.RelativesTool;
-import cn.lc.sunnyside.Auth.FamilyLoginContextHolder;
+import cn.lc.sunnyside.Auth.FamilyLoginContext;
 import cn.lc.sunnyside.POJO.DTO.ChatReply;
 import cn.lc.sunnyside.Service.AIService;
 import cn.lc.sunnyside.Service.FamilyAccessService;
@@ -52,7 +52,7 @@ public class AIServiceImpl implements AIService {
         this.elderTool = elderTool;
         this.relativesTool = relativesTool;
         this.familyAccessService = familyAccessService;
-        
+
         this.chatClient = builder
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .defaultAdvisors(
@@ -65,6 +65,13 @@ public class AIServiceImpl implements AIService {
                 .build();
     }
 
+    /**
+     * 老人端与 AI 的文字聊天接口
+     *
+     * @param userInput      用户输入的文本信息
+     * @param conversationId 对话的唯一标识，用于保持上下文记忆
+     * @return 包含 AI 回复记录及可能工具调用记录的聊天结果
+     */
     @Override
     public ChatReply.ChatReplyRecord elderChat(String userInput, String conversationId) {
         Prompt prompt = buildSystemPrompt(systemPrompt);
@@ -78,10 +85,11 @@ public class AIServiceImpl implements AIService {
     }
 
     /**
-     * 构建系统提示模板,以及构建聊天实体
+     * 家属端与 AI 的文字聊天接口
      * 
-     * @param systemPrompt 系统提示模板资源
-     * @return 构建后的系统提示模板
+     * @param userInput      家属输入的文本信息
+     * @param conversationId 对话的唯一标识，用于保持上下文记忆
+     * @return 包含 AI 回复记录的聊天结果
      */
     @Override
     public ChatReply.ChatReplyRecord relativesChat(String userInput, String conversationId) {
@@ -95,6 +103,13 @@ public class AIServiceImpl implements AIService {
         return new ChatReply.ChatReplyRecord(answer, List.of());
     }
 
+    /**
+     * 流式输出的聊天接口，用于实现打字机效果
+     *
+     * @param userInput      用户输入的文本信息
+     * @param conversationId 对话的唯一标识，用于保持上下文记忆
+     * @return 包含回复内容的 Flux 流
+     */
     @Override
     public Flux<String> streamChat(String userInput, String conversationId) {
         Prompt prompt = buildSystemPrompt(systemPrompt);
@@ -106,12 +121,23 @@ public class AIServiceImpl implements AIService {
                 .content();
     }
 
+    /**
+     * 支持多模态（文本 + 多媒体文件）的聊天接口
+     *
+     * @param userInput      用户输入的文本信息
+     * @param mediaFiles     用户上传的媒体文件列表（支持图片、音频、视频）
+     * @param conversationId 对话的唯一标识，用于保持上下文记忆
+     * @return 包含 AI 多模态回复记录的聊天结果
+     */
     @Override
     public ChatReply.ChatReplyRecord multimodalChat(String userInput, List<MultipartFile> mediaFiles,
             String conversationId) {
+        // 校验多媒体文件列表是否为空或全部为空文件
         if (mediaFiles == null || mediaFiles.isEmpty() || mediaFiles.stream().allMatch(MultipartFile::isEmpty)) {
             return new ChatReply.ChatReplyRecord("请上传媒体文件。", List.of());
         }
+
+        // 校验文件类型是否符合多模态处理支持的要求
         for (MultipartFile mediaFile : mediaFiles) {
             if (mediaFile == null || mediaFile.isEmpty()) {
                 continue;
@@ -124,7 +150,8 @@ public class AIServiceImpl implements AIService {
                 return new ChatReply.ChatReplyRecord("仅支持 image/*、audio/*、video/* 类型的媒体输入。", List.of());
             }
         }
-        // 构建 multimodal 提示模板
+
+        // 构建系统提示词并执行多模态聊天调用
         Prompt prompt = buildSystemPrompt(systemPrompt);
         String answer = this.chatClient.prompt(prompt)
                 .options(DashScopeChatOptions.builder().multiModel(true).build())
@@ -147,18 +174,21 @@ public class AIServiceImpl implements AIService {
     }
 
     /**
-     * 构建系统提示模板,以及构建聊天实体(主要将解析后的 家属信息 注入到系统提示模板中)
+     * 构建系统提示模板，主要将解析后的家属登录态信息和当前时间注入到系统提示模板中，作为 AI 的全局上下文
      * 
-     * @param promptResource 系统提示模板资源
-     * @return 构建后的系统提示模板
+     * @param promptResource 系统提示模板对应的文件资源
+     * @return 构建并渲染参数后的 Prompt 对象
      */
     private Prompt buildSystemPrompt(Resource promptResource) {
         SystemPromptTemplate systemPromptTemplate = new SystemPromptTemplate(promptResource);
-        String familyContext = FamilyLoginContextHolder.get()
+
+        // 从上下文中获取家属登录信息并格式化，用于指导 AI 如何使用家属相关的工具
+        String familyContext = FamilyLoginContext.get()
                 .map(context -> "当前请求已登录家属信息：familyId=" + context.familyId() + "，familyPhone=" + context.phone()
                         + "。" + familyAccessService.buildBoundElderContext(context.phone())
                         + " 当调用家属相关工具时，优先使用登录态与默认绑定老人，不要再向用户追问手机号。")
                 .orElse("当前请求未识别到已登录家属身份。");
+
         Message systemMessage = systemPromptTemplate
                 .createMessage(Map.of(
                         "current_time", LocalDateTime.now().toString(),
@@ -202,7 +232,10 @@ public class AIServiceImpl implements AIService {
             return new ByteArrayResource(mediaFile.getBytes()) {
                 @Override
                 public String getFilename() {
-                    return mediaFile.getOriginalFilename() != null ? mediaFile.getOriginalFilename() : "file";
+                    if (mediaFile.getOriginalFilename() != null) {
+                        return mediaFile.getOriginalFilename();
+                    }
+                    return "file";
                 }
             };
         } catch (IOException ex) {

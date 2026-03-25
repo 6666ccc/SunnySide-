@@ -10,5 +10,7 @@ public interface FamilyAccessService {
 
     Long resolveDefaultElderId(String familyPhone);
 
+    Long resolveElderIdByName(String familyPhone, String elderName);
+
     String buildBoundElderContext(String familyPhone);
 }

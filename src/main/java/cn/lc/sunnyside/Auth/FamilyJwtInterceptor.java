@@ -1,6 +1,5 @@
 package cn.lc.sunnyside.Auth;
 
-
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
@@ -41,7 +40,7 @@ public class FamilyJwtInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        FamilyLoginContextHolder.clear();
+        FamilyLoginContext.clear();
         if (jwtVerifier == null) {
             return true;
         }
@@ -55,15 +54,24 @@ public class FamilyJwtInterceptor implements HandlerInterceptor {
         }
         try {
             DecodedJWT jwt = jwtVerifier.verify(token);
-            Long familyId = jwt.getClaim("familyId").isNull() ? null : jwt.getClaim("familyId").asLong();
-            String familyPhone = jwt.getClaim("familyPhone").isNull() ? null : jwt.getClaim("familyPhone").asString();
-            String familyUsername = jwt.getClaim("familyUsername").isNull() ? null : jwt.getClaim("familyUsername").asString();
+            Long familyId = null;
+            if (!jwt.getClaim("familyId").isNull()) {
+                familyId = jwt.getClaim("familyId").asLong();
+            }
+            String familyPhone = null;
+            if (!jwt.getClaim("familyPhone").isNull()) {
+                familyPhone = jwt.getClaim("familyPhone").asString();
+            }
+            String familyUsername = null;
+            if (!jwt.getClaim("familyUsername").isNull()) {
+                familyUsername = jwt.getClaim("familyUsername").asString();
+            }
             FamilyLoginContext context = new FamilyLoginContext(familyId, familyPhone, familyUsername);
             if (context.isValid()) {
-                FamilyLoginContextHolder.set(context);
+                FamilyLoginContext.set(context);
             }
         } catch (JWTVerificationException ignored) {
-            FamilyLoginContextHolder.clear();
+            FamilyLoginContext.clear();
         }
         return true;
     }
@@ -72,7 +80,8 @@ public class FamilyJwtInterceptor implements HandlerInterceptor {
      * 请求结束后无条件清理上下文，避免线程池复用造成身份泄露。
      */
     @Override
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
-        FamilyLoginContextHolder.clear();
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler,
+            Exception ex) {
+        FamilyLoginContext.clear();
     }
 }

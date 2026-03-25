@@ -1,6 +1,6 @@
 package cn.lc.sunnyside.AITool;
 
-import cn.lc.sunnyside.Auth.FamilyLoginContextHolder;
+import cn.lc.sunnyside.Auth.FamilyLoginContext;
 import cn.lc.sunnyside.POJO.DO.*;
 import cn.lc.sunnyside.Service.*;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +13,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -31,13 +30,13 @@ public class RelativesTool {
 
     @Tool(description = "预约看望工具。输入访客信息，必须基于当前登录家属绑定的老人。")
     public String bookVisit(
-            @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
+            @ToolParam(description = "老人姓名。如果有多个绑定老人，可通过姓名区分，不填则查默认老人。") String elderName,
             @ToolParam(description = "访客姓名。") String visitorName,
             @ToolParam(description = "来访时间（ISO格式，例如2023-10-01T10:00:00）。") String time,
             @ToolParam(description = "关系。") String relation,
             @ToolParam(description = "联系电话。") String phone) {
-        String resolvedFamilyPhone = resolveFamilyPhone(null);
-        Long resolvedElderId = resolveElderIdForFamily(elderlyId, resolvedFamilyPhone);
+        String resolvedFamilyPhone = resolveFamilyPhone();
+        Long resolvedElderId = resolveElderIdForFamily(elderName, resolvedFamilyPhone);
         if (resolvedElderId == null) {
             return "预约失败，" + unresolvedFamilyElderMessage(resolvedFamilyPhone);
         }
@@ -57,9 +56,9 @@ public class RelativesTool {
     @Tool(description = "取消来访预约。输入预约ID。必须基于当前登录家属绑定的老人。")
     public String cancelVisitAppointment(
             @ToolParam(description = "预约ID。") Long appointmentId,
-            @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId) {
-        String resolvedFamilyPhone = resolveFamilyPhone(null);
-        Long resolvedElderId = resolveElderIdForFamily(elderlyId, resolvedFamilyPhone);
+            @ToolParam(description = "老人姓名。如果有多个绑定老人，可通过姓名区分，不填则查默认老人。") String elderName) {
+        String resolvedFamilyPhone = resolveFamilyPhone();
+        Long resolvedElderId = resolveElderIdForFamily(elderName, resolvedFamilyPhone);
         if (resolvedElderId == null) {
             return "取消失败，" + unresolvedFamilyElderMessage(resolvedFamilyPhone);
         }
@@ -71,13 +70,13 @@ public class RelativesTool {
 
     @Tool(description = "按条件查询来访预约。可按状态和时间范围过滤。必须基于当前登录家属绑定的老人。")
     public String queryVisitAppointments(
-            @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
+            @ToolParam(description = "老人姓名。如果有多个绑定老人，可通过姓名区分，不填则查默认老人。") String elderName,
             @ToolParam(description = "预约状态，可选：PENDING、APPROVED、CANCELED、DONE；不填则不过滤。") String status,
             @ToolParam(description = "开始时间，ISO格式，例如2023-10-01T00:00:00；不填则不限。") String from,
             @ToolParam(description = "结束时间，ISO格式，例如2023-10-31T23:59:59；不填则不限。") String to) {
         try {
-            String resolvedFamilyPhone = resolveFamilyPhone(null);
-            Long resolvedElderId = resolveElderIdForFamily(elderlyId, resolvedFamilyPhone);
+            String resolvedFamilyPhone = resolveFamilyPhone();
+            Long resolvedElderId = resolveElderIdForFamily(elderName, resolvedFamilyPhone);
             if (resolvedElderId == null) {
                 return "查询失败，" + unresolvedFamilyElderMessage(resolvedFamilyPhone);
             }
@@ -104,15 +103,14 @@ public class RelativesTool {
 
     @Tool(description = "家属查询老人健康记录。仅支持已登录家属身份查询其绑定的老人。")
     public String queryElderHealth(
-            @ToolParam(description = "家属手机号。优先自动从登录态获取，未登录时可作为兜底。") String familyPhone,
-            @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
+            @ToolParam(description = "老人姓名。如果有多个绑定老人，可通过姓名区分，不填则查默认老人。") String elderName,
             @ToolParam(description = "开始日期，格式yyyy-MM-dd；不填默认今天。") String startDate,
             @ToolParam(description = "结束日期，格式yyyy-MM-dd；不填默认与开始日期一致。") String endDate) {
-        String resolvedFamilyPhone = resolveFamilyPhone(familyPhone);
+        String resolvedFamilyPhone = resolveFamilyPhone();
         if (resolvedFamilyPhone == null) {
             return "查询失败，请先登录家属账号。";
         }
-        Long resolvedElderId = resolveElderIdForFamily(elderlyId, resolvedFamilyPhone);
+        Long resolvedElderId = resolveElderIdForFamily(elderName, resolvedFamilyPhone);
         if (resolvedElderId == null) {
             return "查询失败，" + unresolvedFamilyElderMessage(resolvedFamilyPhone);
         }
@@ -127,13 +125,12 @@ public class RelativesTool {
 
     @Tool(description = "校验当前登录家属是否已绑定某位老人。")
     public String checkFamilyElderAccess(
-            @ToolParam(description = "家属手机号。优先自动从登录态获取，未登录时可作为兜底。") String familyPhone,
-            @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId) {
-        String resolvedFamilyPhone = resolveFamilyPhone(familyPhone);
+            @ToolParam(description = "老人姓名。如果有多个绑定老人，可通过姓名区分，不填则查默认老人。") String elderName) {
+        String resolvedFamilyPhone = resolveFamilyPhone();
         if (resolvedFamilyPhone == null) {
             return "校验失败，请先登录家属账号。";
         }
-        Long resolvedElderId = resolveElderIdForFamily(elderlyId, resolvedFamilyPhone);
+        Long resolvedElderId = resolveElderIdForFamily(elderName, resolvedFamilyPhone);
         if (resolvedElderId == null) {
             return "校验失败，" + unresolvedFamilyElderMessage(resolvedFamilyPhone);
         }
@@ -146,14 +143,13 @@ public class RelativesTool {
 
     @Tool(description = "家属查询老人某日概览。仅支持已登录家属身份查询其绑定的老人。")
     public String getElderDailySummary(
-            @ToolParam(description = "家属手机号。优先自动从登录态获取，未登录时可作为兜底。") String familyPhone,
-            @ToolParam(description = "老人ID。已知时优先传入。") Long elderlyId,
+            @ToolParam(description = "老人姓名。如果有多个绑定老人，可通过姓名区分，不填则查默认老人。") String elderName,
             @ToolParam(description = "日期，格式yyyy-MM-dd；不填默认今天。") String date) {
-        String resolvedFamilyPhone = resolveFamilyPhone(familyPhone);
+        String resolvedFamilyPhone = resolveFamilyPhone();
         if (resolvedFamilyPhone == null) {
             return "查询失败，请先登录家属账号。";
         }
-        Long resolvedElderId = resolveElderIdForFamily(elderlyId, resolvedFamilyPhone);
+        Long resolvedElderId = resolveElderIdForFamily(elderName, resolvedFamilyPhone);
         if (resolvedElderId == null) {
             return "查询失败，" + unresolvedFamilyElderMessage(resolvedFamilyPhone);
         }
@@ -171,28 +167,24 @@ public class RelativesTool {
     /**
      * 解析当前登录家属的手机号
      * 
-     * @param familyPhone 传入的家属手机号参数（已废弃）
      * @return 当前登录家属的手机号，如果未登录则返回 null
      */
-    private String resolveFamilyPhone(String familyPhone) {
-        return FamilyLoginContextHolder.get()
+    private String resolveFamilyPhone() {
+        return FamilyLoginContext.get()
                 .map(ctx -> ctx.phone())
                 .filter(phone -> !phone.isBlank())
-                .or(() -> Optional.ofNullable(familyPhone)
-                        .map(String::trim)
-                        .filter(phone -> !phone.isBlank()))
                 .orElse(null);
     }
 
-    private Long resolveElderIdForFamily(Long elderlyId, String familyPhone) {
+    private Long resolveElderIdForFamily(String elderName, String familyPhone) {
         if (familyPhone == null || familyPhone.isBlank()) {
             return null;
         }
-        if (elderlyId != null) {
-            if (familyAccessService.canAccessElder(familyPhone, elderlyId)) {
-                return elderlyId;
+        if (elderName != null && !elderName.isBlank()) {
+            Long id = familyAccessService.resolveElderIdByName(familyPhone, elderName.trim());
+            if (id != null) {
+                return id;
             }
-            return null;
         }
         return familyAccessService.resolveDefaultElderId(familyPhone);
     }

@@ -10,6 +10,8 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
@@ -34,6 +36,11 @@ public class RAGConfig {
 
     @Value("${app.rag.force-reload:false}")
     private boolean forceReload;
+
+    @Bean
+    public ChatMemory chatMemory() {
+        return MessageWindowChatMemory.builder().build();
+    }
 
     @Bean
     public CommandLineRunner loadData(VectorStore vectorStore) {
@@ -72,8 +79,7 @@ public class RAGConfig {
                                 .query("*")
                                 .topK(10000)
                                 .filterExpression(fb.eq("source_file", "ragKonloage.txt").build())
-                                .build()
-                );
+                                .build());
                 if (oldDocs != null && !oldDocs.isEmpty()) {
                     List<String> oldIds = oldDocs.stream()
                             .map(Document::getId)
@@ -89,11 +95,11 @@ public class RAGConfig {
             // Step 2: 写入新向量数据，仅在成功后才持久化 hash，保证原子性
             try {
                 vectorStore.add(splitDocuments);
-                //  仅写入成功后才更新 hash，避免写入中途失败导致 hash 与向量库不一致
+                // 仅写入成功后才更新 hash，避免写入中途失败导致 hash 与向量库不一致
                 writeStoredHash(hashFilePath, latestHash);
                 logger.info("RAG 数据加载完成！共写入 {} 个文档片段。hash={}", splitDocuments.size(), latestHash);
             } catch (Exception ex) {
-                //  写入失败：不更新 hash，下次启动将强制重试
+                // 写入失败：不更新 hash，下次启动将强制重试
                 logger.error("RAG 向量数据写入失败！本次 hash 不会更新，下次启动将自动重试。hash={}", latestHash, ex);
             }
         };
