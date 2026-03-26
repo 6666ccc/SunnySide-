@@ -221,6 +221,12 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
         return "data:image/png;base64," + rawBase64;
     }
 
+    /**
+     * 规范化验证码有效期。
+     *
+     * @param configuredSeconds 配置值（秒）
+     * @return 合法有效期，超出上限时自动截断
+     */
     private long normalizeCaptchaTtlSeconds(Long configuredSeconds) {
         long defaultSeconds = 120L;
         long maxSeconds = 600L;
@@ -230,6 +236,13 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
         return Math.min(configuredSeconds, maxSeconds);
     }
 
+    /**
+     * 将必须为正数的配置项归一化。
+     *
+     * @param value 配置值
+     * @param defaultValue 默认值
+     * @return 正数配置值，非法时返回默认值
+     */
     private int normalizePositive(Integer value, int defaultValue) {
         if (value == null || value <= 0) {
             return defaultValue;
@@ -237,6 +250,12 @@ public class FamilyAuthServiceImpl implements FamilyAuthService {
         return value;
     }
 
+    /**
+     * 规范化 JWT 过期小时数。
+     *
+     * @param configuredHours 配置值（小时）
+     * @return 合法过期时长，超出上限时自动截断
+     */
     private long normalizeTtlHours(Long configuredHours) {
         long defaultHours = 24L;
         long maxHours = 168L;

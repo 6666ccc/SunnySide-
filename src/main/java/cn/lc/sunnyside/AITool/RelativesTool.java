@@ -176,6 +176,14 @@ public class RelativesTool {
                 .orElse(null);
     }
 
+    /**
+     * 在家属身份范围内解析目标老人ID。
+     * 优先按姓名匹配指定老人，未提供或未命中时回退默认绑定老人。
+     *
+     * @param elderName 老人姓名
+     * @param familyPhone 家属手机号
+     * @return 解析到的老人ID，未命中返回 null
+     */
     private Long resolveElderIdForFamily(String elderName, String familyPhone) {
         if (familyPhone == null || familyPhone.isBlank()) {
             return null;
@@ -189,6 +197,12 @@ public class RelativesTool {
         return familyAccessService.resolveDefaultElderId(familyPhone);
     }
 
+    /**
+     * 构建家属-老人绑定关系未命中时的提示文案。
+     *
+     * @param familyPhone 家属手机号
+     * @return 绑定关系提示信息
+     */
     private String unresolvedFamilyElderMessage(String familyPhone) {
         if (familyPhone == null || familyPhone.isBlank()) {
             return "请先登录家属账号。";

@@ -16,14 +16,19 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
     private final FamilyJwtInterceptor familyJwtInterceptor;
 
+    /**
+     * 注册全局跨域策略。
+     *
+     * @param registry 跨域注册器
+     */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**") 
+        registry.addMapping("/**")
                 .allowedOriginPatterns("*")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // 允许的方法
-                .allowedHeaders("*") // 允许的请求头
-                .allowCredentials(true) // 允许携带 Cookie/凭证
-                .maxAge(3600); // 预检请求缓存时间（秒）
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
     }
 
     /**

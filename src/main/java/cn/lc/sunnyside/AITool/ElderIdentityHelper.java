@@ -33,7 +33,7 @@ public class ElderIdentityHelper {
         return null;
     }
 
-    /*
+    /**
      * 根据身份线索查找匹配的老人，支持姓名、手机号后4位等模糊匹配。
      */
     public List<ElderlyUser> findCandidates(String elderRef) {
@@ -45,7 +45,12 @@ public class ElderIdentityHelper {
                 .toList();
     }
 
-    // 当无法唯一识别老人时，生成提示信息
+    /**
+     * 当无法唯一识别老人时，生成更可读的错误提示文案。
+     *
+     * @param elderRef 用户提供的老人身份线索
+     * @return 无匹配或多匹配时的提示文本
+     */
     public String unresolvedMessage(String elderRef) {
         List<ElderlyUser> candidates = findCandidates(elderRef);
         if (candidates.isEmpty()) {
@@ -56,7 +61,7 @@ public class ElderIdentityHelper {
                 .collect(Collectors.joining("; "));
     }
 
-    /*
+    /**
      * 格式化老人简要信息，包含ID、姓名和手机号后4位（如果有）。
      */
     public String formatElderBrief(ElderlyUser elder) {

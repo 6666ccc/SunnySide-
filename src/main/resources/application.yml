@@ -46,6 +46,9 @@ mybatis:
   mapper-locations: classpath:mapper/*.xml
 
 app:
+  ai:
+    workflow:
+      enabled: ${APP_AI_WORKFLOW_ENABLED:false}
   auth:
     captcha:
       prefix: ${APP_AUTH_CAPTCHA_PREFIX:auth:family:captcha:}

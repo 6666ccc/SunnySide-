@@ -37,11 +37,24 @@ public class RAGConfig {
     @Value("${app.rag.force-reload:false}")
     private boolean forceReload;
 
+    /**
+     * 构建会话记忆实例。
+     * 使用窗口化消息记忆，避免上下文无限增长。
+     *
+     * @return ChatMemory 实例
+     */
     @Bean
     public ChatMemory chatMemory() {
         return MessageWindowChatMemory.builder().build();
     }
 
+    /**
+     * 应用启动时加载并增量刷新 RAG 知识数据。
+     * 当文档内容哈希未变化且未强制重载时，直接跳过向量写入。
+     *
+     * @param vectorStore 向量存储实例
+     * @return 启动回调任务
+     */
     @Bean
     public CommandLineRunner loadData(VectorStore vectorStore) {
         return args -> {
@@ -71,7 +84,6 @@ public class RAGConfig {
                 document.getMetadata().put("source_hash", latestHash);
             });
 
-            // Step 1: 写入前先删除同 source_file 的旧向量数据，防止因重复写入累积脏数据
             try {
                 FilterExpressionBuilder fb = new FilterExpressionBuilder();
                 List<Document> oldDocs = vectorStore.similaritySearch(
@@ -88,23 +100,25 @@ public class RAGConfig {
                     logger.info("已清除旧向量数据 {} 条，准备重新写入。", oldIds.size());
                 }
             } catch (Exception ex) {
-                // 删除旧数据失败不应阻断整个流程，记录警告后继续写入
                 logger.warn("清除旧向量数据失败，将直接执行新增写入（可能存在重复数据）。", ex);
             }
 
-            // Step 2: 写入新向量数据，仅在成功后才持久化 hash，保证原子性
             try {
                 vectorStore.add(splitDocuments);
-                // 仅写入成功后才更新 hash，避免写入中途失败导致 hash 与向量库不一致
                 writeStoredHash(hashFilePath, latestHash);
                 logger.info("RAG 数据加载完成！共写入 {} 个文档片段。hash={}", splitDocuments.size(), latestHash);
             } catch (Exception ex) {
-                // 写入失败：不更新 hash，下次启动将强制重试
                 logger.error("RAG 向量数据写入失败！本次 hash 不会更新，下次启动将自动重试。hash={}", latestHash, ex);
             }
         };
     }
 
+    /**
+     * 读取历史知识文件哈希值。
+     *
+     * @param hashFilePath 哈希文件路径
+     * @return 已保存哈希；文件不存在或读取失败时返回空字符串
+     */
     private String readStoredHash(Path hashFilePath) {
         try {
             if (!Files.exists(hashFilePath)) {
@@ -117,6 +131,13 @@ public class RAGConfig {
         }
     }
 
+    /**
+     * 写入最新知识文件哈希值。
+     *
+     * @param hashFilePath 哈希文件路径
+     * @param hash 最新哈希
+     * @throws Exception 文件系统异常
+     */
     private void writeStoredHash(Path hashFilePath, String hash) throws Exception {
         Path parent = hashFilePath.getParent();
         if (parent != null) {
@@ -125,6 +146,13 @@ public class RAGConfig {
         Files.writeString(hashFilePath, hash, StandardCharsets.UTF_8);
     }
 
+    /**
+     * 计算文本内容的 SHA-256 哈希。
+     *
+     * @param content 输入文本
+     * @return 16进制哈希字符串
+     * @throws Exception 摘要计算异常
+     */
     private String sha256(String content) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hashed = digest.digest(content.getBytes(StandardCharsets.UTF_8));

@@ -6,6 +6,7 @@ import cn.lc.sunnyside.Auth.FamilyLoginContext;
 import cn.lc.sunnyside.POJO.DTO.ChatReply;
 import cn.lc.sunnyside.Service.AIService;
 import cn.lc.sunnyside.Service.FamilyAccessService;
+import cn.lc.sunnyside.Workflow.AgentRouterWorkflowService;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -22,6 +23,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeType;
 import org.springframework.util.MimeTypeUtils;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Flux;
 
@@ -38,6 +40,10 @@ public class AIServiceImpl implements AIService {
     private final ElderTool elderTool;
     private final RelativesTool relativesTool;
     private final FamilyAccessService familyAccessService;
+    private final AgentRouterWorkflowService agentRouterWorkflowService;
+
+    @Value("${app.ai.workflow.enabled:false}")
+    private boolean workflowEnabled;
 
     @Value("classpath:prompts/system.st")
     private Resource systemPrompt;
@@ -45,13 +51,27 @@ public class AIServiceImpl implements AIService {
     @Value("classpath:prompts/relatives_system.st")
     private Resource relativesSystemPrompt;
 
+    /**
+     * 构造 AI 服务实现并初始化统一 ChatClient。
+     * 默认挂载会话记忆与向量检索增强顾问，使所有对话接口复用同一套基础能力。
+     *
+     * @param builder                    ChatClient 构造器
+     * @param chatMemory                 会话记忆组件
+     * @param elderTool                  老人端工具集合
+     * @param relativesTool              家属端工具集合
+     * @param familyAccessService        家属-老人绑定关系服务
+     * @param agentRouterWorkflowService 总控路由工作流服务
+     * @param vectorStore                向量库实例
+     */
     public AIServiceImpl(ChatClient.Builder builder, ChatMemory chatMemory, ElderTool elderTool,
             RelativesTool relativesTool,
             FamilyAccessService familyAccessService,
+            AgentRouterWorkflowService agentRouterWorkflowService,
             VectorStore vectorStore) {
         this.elderTool = elderTool;
         this.relativesTool = relativesTool;
         this.familyAccessService = familyAccessService;
+        this.agentRouterWorkflowService = agentRouterWorkflowService;
 
         this.chatClient = builder
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
@@ -74,6 +94,10 @@ public class AIServiceImpl implements AIService {
      */
     @Override
     public ChatReply.ChatReplyRecord elderChat(String userInput, String conversationId) {
+        String workflowReply = tryWorkflowReply(userInput, conversationId);
+        if (StringUtils.hasText(workflowReply)) {
+            return new ChatReply.ChatReplyRecord(workflowReply, List.of());
+        }
         Prompt prompt = buildSystemPrompt(systemPrompt);
         String answer = this.chatClient.prompt(prompt)
                 .user(userInput)
@@ -93,6 +117,10 @@ public class AIServiceImpl implements AIService {
      */
     @Override
     public ChatReply.ChatReplyRecord relativesChat(String userInput, String conversationId) {
+        String workflowReply = tryWorkflowReply(userInput, conversationId);
+        if (StringUtils.hasText(workflowReply)) {
+            return new ChatReply.ChatReplyRecord(workflowReply, List.of());
+        }
         Prompt prompt = buildSystemPrompt(relativesSystemPrompt);
         String answer = this.chatClient.prompt(prompt)
                 .user(userInput)
@@ -241,5 +269,27 @@ public class AIServiceImpl implements AIService {
         } catch (IOException ex) {
             throw new IllegalStateException("媒体文件读取失败。", ex);
         }
+    }
+
+    /**
+     * 尝试使用业务工作流直接生成回复。
+     * 仅在工作流开关开启、输入有效且工作流返回非空内容时才生效。
+     *
+     * @param userInput      用户输入
+     * @param conversationId 会话ID
+     * @return 工作流回复；不命中时返回 null
+     */
+    private String tryWorkflowReply(String userInput, String conversationId) {
+        if (!workflowEnabled || !StringUtils.hasText(userInput)) {
+            return null;
+        }
+        String familyPhone = FamilyLoginContext.get()
+                .map(FamilyLoginContext::phone)
+                .orElse(null);
+        String reply = agentRouterWorkflowService.executeWorkflow(userInput, familyPhone, conversationId);
+        if (!StringUtils.hasText(reply)) {
+            return null;
+        }
+        return reply;
     }
 }
