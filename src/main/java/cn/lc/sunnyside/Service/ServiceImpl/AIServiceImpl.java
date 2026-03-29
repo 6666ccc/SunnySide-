@@ -32,6 +32,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * @author lc
+ */
 @Service
 public class AIServiceImpl implements AIService {
 
@@ -140,8 +143,13 @@ public class AIServiceImpl implements AIService {
                             continue;
                         }
                         String contentType = normalizeContentType(mediaFile.getContentType());
-                        MimeType mimeType = MimeTypeUtils.parseMimeType(contentType);
-                        u.media(mimeType, toNamedResource(mediaFile));
+                        MimeType mimeType = null;
+                        if (contentType != null) {
+                            mimeType = MimeTypeUtils.parseMimeType(contentType);
+                        }
+                        if (mimeType != null) {
+                            u.media(mimeType, toNamedResource(mediaFile));
+                        }
                     }
                 })
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))

@@ -158,7 +158,9 @@ public class RelativeAuthServiceImpl implements RelativeAuthService {
     }
 
     private long normalizeTtlSeconds(Long seconds) {
-        if (seconds == null || seconds <= 0) return 120L;
+        if (seconds == null || seconds <= 0) {
+            return 120L;
+        }
         return Math.min(seconds, 600L);
     }
 
@@ -167,7 +169,9 @@ public class RelativeAuthServiceImpl implements RelativeAuthService {
     }
 
     private long normalizeTtlHours(Long hours) {
-        if (hours == null || hours <= 0) return 24L;
+        if (hours == null || hours <= 0) {
+            return 24L;
+        }
         return Math.min(hours, 168L);
     }
 }

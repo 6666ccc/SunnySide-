@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * @author lc
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/auth/relative")
@@ -18,11 +21,13 @@ public class AuthController {
 
     private final RelativeAuthService relativeAuthService;
 
+    // 生成验证码接口
     @GetMapping("/captcha")
     public RelativeAuthDTO.CaptchaResponse captcha() {
         return relativeAuthService.createCaptcha();
     }
 
+    // 登录接口
     @PostMapping("/login")
     public RelativeAuthDTO.LoginResponse login(@RequestBody RelativeAuthDTO.LoginRequest request) {
         return relativeAuthService.login(request);
