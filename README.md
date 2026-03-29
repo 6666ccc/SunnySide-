@@ -1,4 +1,4 @@
-# SunnySide
+# 项目简介
 
 本项目是基于 Spring AI和Spring AI Alibaba workflow 学习项目，核心目标是把 **RAG上下文检索、工具调用、会话记忆、workflow/Graph、登录态注入** 放到同一套业务链路里落地。
 面向对象是医疗场景中的患者侧和家属侧智能问答，提供一个可运行的示例。
