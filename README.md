@@ -45,54 +45,127 @@ src/main/resources
 └── rag/             # RAG 知识文件
 ```
 
-## 4. 执行逻辑（Mermaid）
+## 4. 执行逻辑（按请求路径拆解）
 
-### 4.1 普通问答链路（患者/家属）
+### 4.1 请求总览
 
 ```mermaid
 flowchart TD
-    A[HTTP Request] --> B[WebConfig 注册拦截器]
-    B --> C[RelativeJwtInterceptor 解析 JWT]
-    C --> D[AIController]
-    D --> E[AIServiceImpl]
-    E --> F{是否家属问答 relativesChat?}
-    F -- 否 --> G[ChatClient: Prompt + Memory + RAG + Tools]
-    F -- 是 --> H{workflow.enabled?}
-    H -- 是 --> I[AgentRouterWorkflowService]
-    H -- 否 --> G
-    I --> J[medicalWorkflow: RouterNode -> ResponseNode]
-    J --> K[生成最终回复]
-    G --> K
-    K --> L[ChatReply / Flux SSE]
+    A[HTTP Request] --> B[WebConfig.addInterceptors]
+    B --> C[RelativeJwtInterceptor.preHandle]
+    C --> D[Controller 路由分发]
+
+    D --> E1[/PatientChat 或 /stream/]
+    D --> E2[/RelativesChat/]
+    D --> E3[/api/workflow/medical-chat/]
+
+    E1 --> F1[AIServiceImpl.patientChat / streamChat]
+    E2 --> F2{app.ai.workflow.enabled}
+    F2 -- false --> F3[AIServiceImpl.relativesChat -> ChatClient]
+    F2 -- true --> F4[AIServiceImpl.tryWorkflowReply -> AgentRouterWorkflowService]
+    E3 --> F5[AIController.medicalWorkflowChat -> AgentRouterWorkflowService]
+
+    F1 --> G[Prompt + Memory + RAG + Tools]
+    F3 --> G
+    F4 --> H[medicalWorkflow: RouterNode -> ResponseNode]
+    F5 --> H
+
+    G --> I[LLM 输出]
+    H --> I
+    I --> J[JSON 或 SSE 返回]
 ```
 
-### 4.2 家属登录与上下文注入
+涉及文件：`src/main/java/cn/lc/sunnyside/Config/WebConfig.java`、`src/main/java/cn/lc/sunnyside/Auth/RelativeJwtInterceptor.java`、`src/main/java/cn/lc/sunnyside/Controller/AIController.java`
+
+### 4.2 普通问答链路（Patient / Relatives / Stream）
+
+1. `AIController` 接收请求并校验 `UserID`（会话 ID）。
+2. `AIServiceImpl` 构建系统提示词（`buildSystemPrompt`），将登录态信息拼入 `family_context`。
+3. `ChatClient` 默认挂载：
+   - `MessageChatMemoryAdvisor`（多轮记忆）
+   - `QuestionAnswerAdvisor`（向量检索增强）
+4. 模型可调用 `InpatientMedicalTools` 获取业务数据。
+5. `/stream` 走流式输出，其余接口返回 `ChatReplyRecord`。
+
+涉及文件：`src/main/java/cn/lc/sunnyside/Controller/AIController.java`、`src/main/java/cn/lc/sunnyside/Service/ServiceImpl/AIServiceImpl.java`、`src/main/java/cn/lc/sunnyside/AITool/InpatientMedicalTools.java`
+
+### 4.3 家属登录与上下文注入
 
 ```mermaid
 sequenceDiagram
-    规定 U   作为 用户
-    规定 AC  作为 AuthController.java文件
-    规定 AS  作为 RelativeAuthService.java文件
-    规定 R   作为 Redis服务
-    规定 AI  作为 AIController.java文件
-    规定 RI  作为 RelativeJwtInterceptor.java文件
-    规定 Ctx 作为 RelativeLoginContext.java文件
+    participant U as User
+    participant AC as AuthController
+    participant AS as RelativeAuthServiceImpl
+    participant R as Redis
+    participant RI as RelativeJwtInterceptor
+    participant Ctx as RelativeLoginContext
+    participant AI as AIController
 
-    U->>AC: GET /auth/relative/captcha          [自动发起获取验证码请求]
-    AC->>AS: createCaptcha()                    [获取验证码]
-    AS->>R: 存验证码(带TTL)                      [将验证码存储到Redis中]
+    U->>AC: GET /auth/relative/captcha
+    AC->>AS: createCaptcha()
+    AS->>R: 保存 captchaId -> code (TTL)
     AS-->>U: captchaId + base64 图片
 
-    U->>AC: POST /auth/relative/login           [用户发起登录请求]
-    AC->>AS: login(account,password,captcha)    [输入账户,密码,验证码]
-    AS->>R: 校验并删除验证码                      
-    AS-->>U: JWT token
+    U->>AC: POST /auth/relative/login
+    AC->>AS: login(account,password,captchaId,captchaCode)
+    AS->>R: 校验并删除验证码
+    AS-->>U: Bearer JWT
 
-    U->>AI: 携带 Authorization 调用 AI 接口
+    U->>AI: 请求 AI 接口 + Authorization: Bearer xxx
     AI->>RI: preHandle()
-    RI->>Ctx: 写入 relativeId/phone
-    AI-->>U: 返回含登录态上下文增强的回复
+    RI->>Ctx: 写入 relativeId / relativePhone / relativeUsername
+    AI-->>U: 返回带登录态上下文增强的回复
 ```
+
+涉及文件：`src/main/java/cn/lc/sunnyside/Controller/AuthController.java`、`src/main/java/cn/lc/sunnyside/Service/ServiceImpl/RelativeAuthServiceImpl.java`、`src/main/java/cn/lc/sunnyside/Auth/RelativeJwtInterceptor.java`、`src/main/java/cn/lc/sunnyside/Auth/RelativeLoginContext.java`
+
+### 4.4 Workflow 分支（家属问答）
+
+```mermaid
+flowchart LR
+    A[/RelativesChat/] --> B[AIServiceImpl.relativesChat]
+    B --> C{workflowEnabled?}
+    C -- no --> D[ChatClient 普通链路]
+    C -- yes --> E[tryWorkflowReply]
+    E --> F[AgentRouterWorkflowService.executeWorkflow]
+    F --> G[medicalWorkflow]
+    G --> H[RouterNode]
+    H --> I[ResponseNode]
+    I --> J[FINAL_REPLY]
+    J --> K[返回给 relativesChat]
+```
+
+涉及文件：`src/main/java/cn/lc/sunnyside/Service/ServiceImpl/AIServiceImpl.java`、`src/main/java/cn/lc/sunnyside/Workflow/AgentRouterWorkflowService.java`、`src/main/java/cn/lc/sunnyside/Workflow/SunnySideWorkflowConfig.java`
+
+### 4.5 关键文件与作用
+
+| 文件 | 关键符号 | 作用 |
+|---|---|---|
+| `src/main/java/cn/lc/sunnyside/Controller/AIController.java` | `patientChat` `relativesChat` `streamChat` `medicalWorkflowChat` | AI 接口统一入口，参数校验与路由分发。 |
+| `src/main/java/cn/lc/sunnyside/Service/ServiceImpl/AIServiceImpl.java` | `buildSystemPrompt` `tryWorkflowReply` | 编排 Prompt、Memory、RAG、Tools，并按开关切换 Workflow。 |
+| `src/main/java/cn/lc/sunnyside/Auth/RelativeJwtInterceptor.java` | `preHandle` | 解析 Bearer JWT，并将亲属身份写入请求上下文。 |
+| `src/main/java/cn/lc/sunnyside/Auth/RelativeLoginContext.java` | `set/get/clear` | 存放当前请求的亲属登录态（ThreadLocal）。 |
+| `src/main/java/cn/lc/sunnyside/Controller/AuthController.java` | `captcha` `login` | 提供验证码生成与登录接口。 |
+| `src/main/java/cn/lc/sunnyside/Service/ServiceImpl/RelativeAuthServiceImpl.java` | `createCaptcha` `login` | 验证码存取 Redis、账号校验、签发 JWT。 |
+| `src/main/java/cn/lc/sunnyside/Config/RAGConfig.java` | `loadData` | 启动时加载知识文件，按 SHA-256 判断是否重建向量。 |
+| `src/main/java/cn/lc/sunnyside/AITool/InpatientMedicalTools.java` | Tool methods | 提供住院业务查询工具给模型调用。 |
+| `src/main/java/cn/lc/sunnyside/Workflow/AgentRouterWorkflowService.java` | `executeWorkflow` | 组装工作流输入（query/phone/patientId）并执行图。 |
+| `src/main/resources/application.yml` | `app.ai.workflow.enabled` 等 | 控制鉴权、验证码、RAG、Workflow 等运行参数。 |
+
+### 4.6 配置开关如何影响链路
+
+- `app.ai.workflow.enabled=false`：`/RelativesChat` 使用普通 ChatClient 链路。
+- `app.ai.workflow.enabled=true`：`/RelativesChat` 优先走 `tryWorkflowReply -> executeWorkflow`。
+- `app.auth.jwt.secret` 为空：JWT 拦截器不做验签，登录态不会注入上下文。
+- `app.auth.captcha.*`：控制验证码尺寸、TTL、key 前缀。
+- `app.rag.force-reload=true`：忽略 hash 缓存，启动时强制重建向量。
+
+### 4.7 常见排错点（和执行逻辑强相关）
+
+- 登录报“账号、密码和验证码不能为空”：检查 `login` 请求体是否包含 `account`、`password`、`captchaId`、`captchaCode`。
+- 能登录但 Workflow 无法识别亲属：检查请求头是否带 `Authorization: Bearer <token>`。
+- RAG 没生效：确认 `ragKonloage.txt` 内容是否变更、Qdrant 是否可用、`force-reload` 配置是否符合预期。
+- `/RelativesChat` 没走 Workflow：确认 `app.ai.workflow.enabled` 是否开启。
 
 ## 5. 接口总览
 
@@ -143,4 +216,3 @@ sequenceDiagram
 - `DASHSCOPE_API_KEY`
 - `APP_JWT_SECRET`
 - `APP_AI_WORKFLOW_ENABLED`
-
