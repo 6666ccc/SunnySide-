@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.lc.sunnyside.mapper.RelativePatientRelationMapper">
+
+    <select id="selectByRelativeId" resultType="cn.lc.sunnyside.POJO.DO.RelativePatientRelation">
+        SELECT *
+        FROM relative_patient_relation
+        WHERE relative_id = #{relativeId}
+    </select>
+
+    <select id="selectByPatientId" resultType="cn.lc.sunnyside.POJO.DO.RelativePatientRelation">
+        SELECT *
+        FROM relative_patient_relation
+        WHERE patient_id = #{patientId}
+    </select>
+
+    <select id="existsRelation" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM relative_patient_relation
+        WHERE relative_id = #{relativeId}
+          AND patient_id = #{patientId}
+    </select>
+
+</mapper>

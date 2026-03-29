@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.lc.sunnyside.mapper.MedicalTeamDutyMapper">
+
+    <select id="selectByDeptIdAndDate" resultType="cn.lc.sunnyside.POJO.DO.MedicalTeamDuty">
+        SELECT *
+        FROM medical_team_duty
+        WHERE dept_id = #{deptId}
+          AND duty_date = #{date}
+    </select>
+
+</mapper>

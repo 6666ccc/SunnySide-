@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.lc.sunnyside.mapper.TreatmentPlanMapper">
+
+    <select id="selectByPatientIdAndDate" resultType="cn.lc.sunnyside.POJO.DO.TreatmentPlan">
+        SELECT *
+        FROM treatment_plan
+        WHERE patient_id = #{patientId}
+          AND plan_date = #{planDate}
+        ORDER BY start_time
+    </select>
+
+    <select id="selectById" resultType="cn.lc.sunnyside.POJO.DO.TreatmentPlan">
+        SELECT *
+        FROM treatment_plan
+        WHERE id = #{id}
+    </select>
+
+</mapper>

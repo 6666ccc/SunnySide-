@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.lc.sunnyside.mapper.PatientMapper">
+
+    <select id="selectById" resultType="cn.lc.sunnyside.POJO.DO.Patient">
+        SELECT *
+        FROM patient
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByAdmissionNo" resultType="cn.lc.sunnyside.POJO.DO.Patient">
+        SELECT *
+        FROM patient
+        WHERE admission_no = #{admissionNo}
+    </select>
+
+    <select id="selectByDeptId" resultType="cn.lc.sunnyside.POJO.DO.Patient">
+        SELECT *
+        FROM patient
+        WHERE dept_id = #{deptId}
+        ORDER BY bed_number
+    </select>
+
+    <select id="selectByRef" resultType="cn.lc.sunnyside.POJO.DO.Patient">
+        SELECT *
+        FROM patient
+        WHERE CAST(id AS CHAR) = #{ref}
+           OR patient_name LIKE CONCAT('%', #{ref}, '%')
+           OR admission_no LIKE CONCAT('%', #{ref}, '%')
+        ORDER BY id DESC
+        LIMIT 5
+    </select>
+
+</mapper>

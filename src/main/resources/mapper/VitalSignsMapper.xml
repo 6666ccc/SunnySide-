@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.lc.sunnyside.mapper.VitalSignsMapper">
+
+    <select id="selectByPatientIdAndDateRange" resultType="cn.lc.sunnyside.POJO.DO.VitalSigns">
+        SELECT *
+        FROM vital_signs
+        WHERE patient_id = #{patientId}
+          AND record_date &gt;= #{startDate}
+          AND record_date &lt;= #{endDate}
+        ORDER BY record_date DESC, record_time DESC
+    </select>
+
+    <select id="selectLatestByPatientId" resultType="cn.lc.sunnyside.POJO.DO.VitalSigns">
+        SELECT *
+        FROM vital_signs
+        WHERE patient_id = #{patientId}
+        ORDER BY record_date DESC, record_time DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
