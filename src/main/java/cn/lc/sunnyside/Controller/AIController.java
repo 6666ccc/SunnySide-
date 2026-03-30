@@ -106,13 +106,16 @@ public class AIController {
             @RequestParam(name = "query", defaultValue = "查一下最新生命体征") String query,
             @RequestParam(name = "phone", required = false) String phone) {
 
+        // 从请求头或参数中获取亲属手机号
         String relativePhone = phone != null && !phone.isBlank() ? phone.trim()
                 : RelativeLoginContext.get().map(RelativeLoginContext::phone).orElse(null);
 
+        // 如果亲属手机号为空，则返回提示(未登录)
         if (relativePhone == null || relativePhone.isBlank()) {
             return "请先使用亲属账号登录（请求头携带有效 Bearer Token），或在参数中提供 phone。";
         }
 
-        return agentRouterWorkflowService.executeWorkflow(query, relativePhone, null);
+        // 调用工作流服务执行工作流
+        return agentRouterWorkflowService.executeWorkflow(query, relativePhone,null);
     }
 }

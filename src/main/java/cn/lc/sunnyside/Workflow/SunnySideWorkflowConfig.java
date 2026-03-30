@@ -9,35 +9,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 住院医疗工作流配置：RouterNode（LLM + Tool Calling）-> ResponseNode（生成最终回复）。
+ * 本类是定义工作流的配置类,用于定义工作流的节点和边同时也是workflow核心,主要功能是告诉程序如何加工数据什么时候该干什么下一步该干什么加工成什么样子需要调用什么工具等.
  */
 @Configuration
 public class SunnySideWorkflowConfig {
 
-    public static final String SUNNY_SIDE_DEMO_WORKFLOW_BEAN = "sunnySideDemoWorkflow";
     public static final String MEDICAL_WORKFLOW_BEAN = "medicalWorkflow";
 
-    @Bean(name = SUNNY_SIDE_DEMO_WORKFLOW_BEAN)
-    public CompiledGraph sunnySideDemoWorkflow(
-            SunnySideInputProcessNode inputNode,
-            SunnySideLlmProcessNode llmNode) {
-        StateGraph graph = new StateGraph(WorkflowGraphSupport.replaceKeyStrategyFactory());
-        try {
-            graph.addNode("inputNode", AsyncNodeAction.node_async(inputNode));
-            graph.addNode("llmNode", AsyncNodeAction.node_async(llmNode));
-            graph.addEdge(StateGraph.START, "inputNode");
-            graph.addEdge("inputNode", "llmNode");
-            graph.addEdge("llmNode", StateGraph.END);
-            return WorkflowGraphSupport.compile(graph);
-        } catch (GraphStateException e) {
-            throw new IllegalStateException("编译 SunnySide 演示工作流失败", e);
-        }
-    }
-
+    //定义住院医疗工作流
     @Bean(name = MEDICAL_WORKFLOW_BEAN)
     public CompiledGraph medicalWorkflow(
             MedicalRouterNode routerNode,
             MedicalResponseNode responseNode) {
+        //创建一个StateGraph实例用于构建工作流图,传入的参数是WorkflowGraphSupport.replaceKeyStrategyFactory()用于构建全局Map
         StateGraph graph = new StateGraph(WorkflowGraphSupport.replaceKeyStrategyFactory());
         try {
             graph.addNode("routerNode", AsyncNodeAction.node_async(routerNode));

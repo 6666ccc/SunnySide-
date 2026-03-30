@@ -10,8 +10,10 @@ import com.alibaba.cloud.ai.graph.state.strategy.ReplaceStrategy;
 
 import java.util.HashMap;
 
+//我们知道workflow执行时会出现全局Map用于储存数据,而本类目标就是帮助我们构建这个全局Map确保每次执行都覆盖之前的值不会出现数据污染
 public final class WorkflowGraphSupport {
 
+    //创建一个ReplaceStrategy实例用于替换之前的值
     private static final ReplaceStrategy REPLACE = new ReplaceStrategy();
 
     private WorkflowGraphSupport() {

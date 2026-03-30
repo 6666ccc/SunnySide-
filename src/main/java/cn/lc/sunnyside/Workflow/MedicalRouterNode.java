@@ -37,6 +37,12 @@ public class MedicalRouterNode implements NodeAction {
         this.relativeAccessService = relativeAccessService;
     }
 
+    /**
+     * 应用路由节点
+     * @param state 状态
+     * @return 结果
+     * @throws Exception 异常
+     */
     @Override
     public Map<String, Object> apply(OverAllState state) throws Exception {
         Map<String, Object> result = new HashMap<>();
@@ -58,6 +64,11 @@ public class MedicalRouterNode implements NodeAction {
         return result;
     }
 
+    /**
+     * 构建路由系统提示词
+     * @param state 状态
+     * @return 提示词
+     */
     private String buildRouterSystemPrompt(OverAllState state) {
         String phone = state.value(WorkflowStateKeys.RELATIVE_PHONE)
                 .map(Object::toString)
@@ -79,6 +90,11 @@ public class MedicalRouterNode implements NodeAction {
         return sb.toString();
     }
 
+    /**
+     * 将对象转换为Long
+     * @param value 对象
+     * @return Long
+     */
     private static Long toLong(Object value) {
         if (value instanceof Number n) {
             return n.longValue();

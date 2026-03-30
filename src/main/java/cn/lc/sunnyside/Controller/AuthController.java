@@ -33,18 +33,21 @@ public class AuthController {
         return relativeAuthService.login(request);
     }
 
+    // 异常处理
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @org.springframework.web.bind.annotation.ExceptionHandler(IllegalArgumentException.class)
     public ErrorResponse handleBadRequest(IllegalArgumentException ex) {
         return new ErrorResponse(ex.getMessage());
     }
 
+    // 内部错误处理
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     @org.springframework.web.bind.annotation.ExceptionHandler(IllegalStateException.class)
     public ErrorResponse handleInternalError(IllegalStateException ex) {
         return new ErrorResponse(ex.getMessage());
     }
 
+    // 错误响应
     public record ErrorResponse(String message) {
     }
 }

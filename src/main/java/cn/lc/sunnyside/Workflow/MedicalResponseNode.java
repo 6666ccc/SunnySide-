@@ -34,7 +34,12 @@ public class MedicalResponseNode implements NodeAction {
     @SuppressWarnings("unchecked")
     public Map<String, Object> apply(OverAllState state) throws Exception {
         Map<String, Object> result = new HashMap<>();
-        String query = state.value(MedicalWorkflowKeys.QUERY).map(Object::toString).orElse("").trim();
+        // 获取用户输入的问题/消息
+        String query = state.value(MedicalWorkflowKeys.QUERY)
+                .map(Object::toString)
+                .filter(s -> !s.isEmpty())
+                .orElse("");
+        // 获取工具上下文
         Map<String, Object> toolCtx = state.value(MedicalWorkflowKeys.TOOL_CONTEXT)
                 .filter(Map.class::isInstance)
                 .map(v -> (Map<String, Object>) v)
@@ -65,8 +70,10 @@ public class MedicalResponseNode implements NodeAction {
             return "{}";
         }
         try {
+            //将工具上下文转换为JSON字符串
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(toolCtx);
         } catch (JsonProcessingException e) {
+            //如果转换失败则返回工具上下文的字符串表示
             return toolCtx.toString();
         }
     }
