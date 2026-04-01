@@ -1,5 +1,8 @@
 package cn.lc.sunnyside.Config;
 
+import cn.lc.sunnyside.Memory.ChatMemoryProperties;
+import cn.lc.sunnyside.Memory.RedisChatMemoryRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -15,7 +18,9 @@ import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,8 +49,21 @@ public class RAGConfig {
      * @return ChatMemory 实例
      */
     @Bean
-    public ChatMemory chatMemory() {
-        return MessageWindowChatMemory.builder().build();
+    public ChatMemory chatMemory(StringRedisTemplate stringRedisTemplate,
+                                 ObjectMapper objectMapper,
+                                 ChatMemoryProperties props) {
+        RedisChatMemoryRepository repo = new RedisChatMemoryRepository(
+                stringRedisTemplate,
+                objectMapper,
+                props.getRedis().getKeyPrefix(),
+                Duration.ofSeconds(props.getRedis().getTtlSeconds()),
+                props.getMaxMessages()
+        );
+
+        return MessageWindowChatMemory.builder()
+                .chatMemoryRepository(repo)
+                .maxMessages(props.getMaxMessages())
+                .build();
     }
 
     /**
@@ -59,14 +77,18 @@ public class RAGConfig {
     public CommandLineRunner loadData(VectorStore vectorStore) {
         return args -> {
             logger.info("正在加载 RAG 知识库数据: {}", ragDataResource.getFilename());
+            //读取RAG文档(TextReader是Spring AI提供的读取文本文件的类)
             TextReader textReader = new TextReader(ragDataResource);
+            //设置RAG文档的文件名(getCustomMetadata()是TextReader类的方法,用于设置自定义元数据)
             textReader.getCustomMetadata().put("filename", "ragKonloage.txt");
+            //读取RAG文档内容(read()是TextReader类的方法,用于读取文本文件内容)
             List<Document> documents = textReader.read();
+            //如果RAG文档内容为空,则跳过写入(isEmpty()是List类的方法,用于判断列表是否为空)
             if (documents.isEmpty()) {
                 logger.warn("RAG 数据源为空，跳过写入。");
                 return;
-            }
-
+            }   
+            //将RAG文档内容转换为字符串(stream()是Stream类的方法,用于将列表转换为流)
             String rawContent = documents.stream().map(Document::getText).collect(Collectors.joining("\n"));
             String latestHash = sha256(rawContent);
             Path hashFilePath = Path.of(ragHashFile);
@@ -104,7 +126,9 @@ public class RAGConfig {
             }
 
             try {
+                //将RAG文档内容写入向量数据库(add()是VectorStore类的方法,用于将文档内容写入向量数据库)
                 vectorStore.add(splitDocuments);
+                //写入哈希值(writeStoredHash()是RAGConfig类的方法,用于写入哈希值)
                 writeStoredHash(hashFilePath, latestHash);
                 logger.info("RAG 数据加载完成！共写入 {} 个文档片段。hash={}", splitDocuments.size(), latestHash);
             } catch (Exception ex) {

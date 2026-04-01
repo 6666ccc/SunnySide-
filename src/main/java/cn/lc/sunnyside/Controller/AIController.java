@@ -38,6 +38,8 @@ public class AIController {
         if (legacyUserId == null || legacyUserId.isBlank()) {
             return userIdRequiredReply();
         }
+
+
         return aiService.patientChat(userInput, legacyUserId);
     }
 
@@ -54,6 +56,7 @@ public class AIController {
         if (legacyUserId == null || legacyUserId.isBlank()) {
             return userIdRequiredReply();
         }
+
         return aiService.relativesChat(userInput, legacyUserId);
     }
 

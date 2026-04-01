@@ -50,6 +50,12 @@ app:
   ai:
     workflow:
       enabled: ${APP_AI_WORKFLOW_ENABLED:false}
+    chat:
+      memory:
+        max-messages: ${APP_AI_CHAT_MEMORY_MAX_MESSAGES:10}
+        redis:
+          key-prefix: ${APP_AI_CHAT_MEMORY_REDIS_KEY_PREFIX:app:ai:chat-memory:}
+          ttl-seconds: ${APP_AI_CHAT_MEMORY_REDIS_TTL_SECONDS:86400}
   auth:
     captcha:
       prefix: ${APP_AUTH_CAPTCHA_PREFIX:auth:family:captcha:}
