@@ -50,6 +50,9 @@ app:
   ai:
     workflow:
       enabled: ${APP_AI_WORKFLOW_ENABLED:false}
+    agent-loop:
+      enabled: ${APP_AI_AGENT_LOOP_ENABLED:true}
+      max-model-calls: ${APP_AI_AGENT_LOOP_MAX_MODEL_CALLS:12}
     chat:
       memory:
         max-messages: ${APP_AI_CHAT_MEMORY_MAX_MESSAGES:10}

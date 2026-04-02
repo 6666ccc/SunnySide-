@@ -2,6 +2,7 @@ package cn.lc.sunnyside.Workflow;
 
 import cn.lc.sunnyside.AITool.InpatientMedicalTools;
 import cn.lc.sunnyside.Service.RelativeAccessService;
+import cn.lc.sunnyside.agent.MedicalAgentPromptBuilder;
 import cn.lc.sunnyside.Workflow.common.MedicalWorkflowKeys;
 import cn.lc.sunnyside.Workflow.common.WorkflowStateKeys;
 import com.alibaba.cloud.ai.graph.OverAllState;
@@ -18,13 +19,6 @@ import java.util.Map;
  */
 @Component
 public class MedicalRouterNode implements NodeAction {
-
-    private static final String ROUTER_SYSTEM = """
-            你是住院医疗智能助手。当用户询问患者的生命体征（血压、心率、体温、血氧等）、诊疗计划（输液、手术、检查安排）、
-            值班医疗团队（主治医生、责任护士）、饮食医嘱（餐食安排、禁忌）等问题时，必须调用提供的工具获取真实数据，不要编造。
-            若系统提供了「默认患者ID」，调用住院业务工具时必须优先使用该患者ID，除非用户明确指定其他患者ID或能根据姓名在上下文中唯一确定另一名患者。
-            如果用户问题中包含患者ID，也可直接使用；如果提到科室ID，也直接使用。
-            可根据需要连续调用多个工具。若问题与住院医疗业务无关，可不调用工具。""";
 
     private final ChatClient chatClient;
     private final InpatientMedicalTools medicalTools;
@@ -75,19 +69,10 @@ public class MedicalRouterNode implements NodeAction {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .orElse(null);
-        if (phone == null) {
-            return ROUTER_SYSTEM;
-        }
-        StringBuilder sb = new StringBuilder(ROUTER_SYSTEM);
-        sb.append("\n\n【亲属与患者上下文】\n");
-        sb.append(relativeAccessService.buildBoundPatientContext(phone));
-        state.value(WorkflowStateKeys.PATIENT_ID).ifPresent(pid -> {
-            Long id = toLong(pid);
-            if (id != null) {
-                sb.append("\n当前会话默认患者ID（工具入参 patientId 请使用该值，除非用户明确要求其他患者）：").append(id);
-            }
-        });
-        return sb.toString();
+        Long defaultPatientId = state.value(WorkflowStateKeys.PATIENT_ID)
+                .map(MedicalRouterNode::toLong)
+                .orElse(null);
+        return MedicalAgentPromptBuilder.build(phone, defaultPatientId, relativeAccessService);
     }
 
     /**

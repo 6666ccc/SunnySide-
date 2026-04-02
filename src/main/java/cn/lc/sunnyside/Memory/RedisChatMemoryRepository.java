@@ -28,9 +28,18 @@ import java.util.Set;
  */
 public class RedisChatMemoryRepository implements ChatMemoryRepository {
 
+    /**
+     * JSON 反序列化目标类型：`[{type,text}, ...]`
+     */
     private static final TypeReference<List<StoredMessage>> LIST_TYPE = new TypeReference<List<StoredMessage>>() {};
 
+    /**
+     * Redis 操作模板
+     */
     private final StringRedisTemplate stringRedisTemplate;
+    /**
+     * 对象映射器
+     */
     private final ObjectMapper objectMapper;
     private final String keyPrefix;
     private final Duration ttl;
@@ -50,19 +59,8 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
 
     @Override
     public List<Message> findByConversationId(String conversationId) {
-        String key = key(conversationId);
-        String json = stringRedisTemplate.opsForValue().get(key);
-        if (!StringUtils.hasText(json)) {
-            return List.of();
-        }
-
-        List<StoredMessage> stored;
-        try {
-            stored = objectMapper.readValue(json, LIST_TYPE);
-        } catch (Exception ex) {
-            // 反序列化失败时，为避免影响对话，直接视为无记忆
-            return List.of();
-        }
+        // 读失败/格式不对时：记忆功能降级为“无历史”，避免影响对话主链路
+        List<StoredMessage> stored = readStored(key(conversationId));
         if (stored == null || stored.isEmpty()) {
             return List.of();
         }
@@ -96,16 +94,8 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
             }
         }
 
-        if (maxMessages > 0 && existing.size() > maxMessages) {
-            existing = existing.subList(existing.size() - maxMessages, existing.size());
-        }
-
-        try {
-            String json = objectMapper.writeValueAsString(existing);
-            stringRedisTemplate.opsForValue().set(key, json, ttl);
-        } catch (Exception ex) {
-            // 写入失败时不抛出，避免影响主链路；记忆功能将退化为本轮不持久化
-        }
+        existing = trimToWindow(existing);
+        writeStored(key, existing);
     }
 
     @Override
@@ -125,13 +115,9 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
         }
         List<String> ids = new ArrayList<>(keys.size());
         for (String key : keys) {
-            if (!StringUtils.hasText(key)) {
-                continue;
-            }
-            if (keyPrefix.isEmpty()) {
-                ids.add(key);
-            } else if (key.startsWith(keyPrefix)) {
-                ids.add(key.substring(keyPrefix.length()));
+            String id = conversationIdFromKey(key);
+            if (id != null) {
+                ids.add(id);
             }
         }
         return Collections.unmodifiableList(ids);
@@ -142,7 +128,7 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
     }
 
     private List<StoredMessage> readStored(String key) {
-        String json = stringRedisTemplate.opsForValue().get(key);
+        String json = (StringUtils.hasText(key) ? stringRedisTemplate.opsForValue().get(key) : null);
         if (!StringUtils.hasText(json)) {
             return new ArrayList<>();
         }
@@ -150,8 +136,33 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
             List<StoredMessage> stored = objectMapper.readValue(json, LIST_TYPE);
             return stored != null ? new ArrayList<>(stored) : new ArrayList<>();
         } catch (Exception ex) {
+            // 兼容：Redis 里可能残留旧格式/被人工写入非 JSON；此时不让异常干扰业务流程
             return new ArrayList<>();
         }
+    }
+
+    /**
+     * 写入时使用 Sliding TTL：每次成功写入都会刷新过期时间。
+     * 写失败时不抛出，避免“记忆模块”影响对话主流程。
+     */
+    private void writeStored(String key, List<StoredMessage> stored) {
+        try {
+            String json = objectMapper.writeValueAsString(stored != null ? stored : List.of());
+            stringRedisTemplate.opsForValue().set(key, json, ttl);
+        } catch (Exception ex) {
+            // 写入失败：记忆功能退化为“本轮不持久化”
+        }
+    }
+
+    private List<StoredMessage> trimToWindow(List<StoredMessage> stored) {
+        if (stored == null || stored.isEmpty()) {
+            return new ArrayList<>();
+        }
+        if (maxMessages <= 0 || stored.size() <= maxMessages) {
+            return stored;
+        }
+        // 只保留最后 N 条，避免 key 过大且控制 prompt 上下文长度
+        return stored.subList(stored.size() - maxMessages, stored.size());
     }
 
     private StoredMessage fromMessage(Message message) {
@@ -165,9 +176,7 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
         } catch (Exception ignored) {
         }
         String text = extractText(message);
-        if (!StringUtils.hasText(text)) {
-            text = "";
-        }
+        text = (text != null ? text : "");
         if (!StringUtils.hasText(type)) {
             type = "UNKNOWN";
         }
@@ -182,14 +191,17 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
         String text = sm.getText() != null ? sm.getText() : "";
         MessageType mt = parseType(type);
 
-        if (mt == MessageType.USER) {
-            return new UserMessage(text);
-        }
-        if (mt == MessageType.ASSISTANT) {
-            return new AssistantMessage(text);
-        }
-        if (mt == MessageType.SYSTEM) {
-            return new SystemMessage(text);
+        if (mt != null) {
+            switch (mt) {
+                case USER:
+                    return new UserMessage(text);
+                case ASSISTANT:
+                    return new AssistantMessage(text);
+                case SYSTEM:
+                    return new SystemMessage(text);
+                default:
+                    break;
+            }
         }
         // 对于未知类型，按 assistant 降级处理（尽量不丢内容）
         return new AssistantMessage(text);
@@ -220,6 +232,19 @@ public class RedisChatMemoryRepository implements ChatMemoryRepository {
             return v;
         }
         return "";
+    }
+
+    private String conversationIdFromKey(String key) {
+        if (!StringUtils.hasText(key)) {
+            return null;
+        }
+        if (keyPrefix.isEmpty()) {
+            return key;
+        }
+        if (key.startsWith(keyPrefix)) {
+            return key.substring(keyPrefix.length());
+        }
+        return null;
     }
 
     private String invokeStringNoArg(Object target, String methodName) {

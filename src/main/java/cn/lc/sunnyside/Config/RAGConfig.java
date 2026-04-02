@@ -55,13 +55,18 @@ public class RAGConfig {
         RedisChatMemoryRepository repo = new RedisChatMemoryRepository(
                 stringRedisTemplate,
                 objectMapper,
+                //尝试获取Redis的key前缀
                 props.getRedis().getKeyPrefix(),
+                //尝试获取Redis的TTL秒数
                 Duration.ofSeconds(props.getRedis().getTtlSeconds()),
+                //尝试获取最大消息数
                 props.getMaxMessages()
         );
 
         return MessageWindowChatMemory.builder()
+                //设置ChatMemoryRepository  
                 .chatMemoryRepository(repo)
+                //设置最大消息数
                 .maxMessages(props.getMaxMessages())
                 .build();
     }

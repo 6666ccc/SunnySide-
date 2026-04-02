@@ -14,6 +14,7 @@
 - RAG 检索：启动时将本地知识写入 Qdrant向量数据库，并基于向量检索增强回答
 - 工具调用：模型可调用住院业务工具（体征、诊疗计划、值班团队、饮食医嘱）
 - 工作流：家属问答可按配置切到 Workflow（RouterNode -> ResponseNode）
+- **医疗对话（推荐统一入口）**：`GET /api/medical-chat` 使用 `MedicalChatOrchestratorService` 统一编排医疗对话；默认 `mode=auto` 优先 Agent Loop（`ReactAgent.call`，Graph 上 Model/Tool 显式循环 + `ModelCallLimitHook` 迭代上限 + `MemorySaver` 按 `UserID` 作为 `threadId`），再按需 fallback 到 Workflow（`StateGraph`：router -> response）。旧接口 `GET /api/agent/medical-chat`、`GET /api/workflow/medical-chat` 已 `@Deprecated` 仅用于学习/灰度对比。Agent Loop 首版未接入与 `QuestionAnswerAdvisor` 等价的 RAG。配置项：`app.ai.agent-loop.enabled`、`app.ai.agent-loop.max-model-calls`。说明见 [Agents 教程](https://java2ai.com/docs/frameworks/agent-framework/tutorials/agents)。
 - 流式输出：支持 SSE
 - 多模态：支持 `image/*`、`audio/*`、`video/*` 输入(该接口是我当时学习多模态写的,可有可无)
 - 登录鉴权：家属登录（验证码 + JWT），并通过拦截器注入登录上下文
@@ -38,6 +39,7 @@ src/main/java/cn/lc/sunnyside
 ├── Controller/      # 接口入口（AI、Auth）
 ├── POJO/            # DO/DTO
 ├── Service/         # 业务服务与实现
+├── agent/           # ReactAgent Loop：提示词、调用上下文、拦截器
 ├── Workflow/        # Workflow 节点、编排与执行门面
 ├── mapper/          # MyBatis Mapper 接口
 └── SunnySideApplication.java
@@ -68,28 +70,37 @@ flowchart TD
     C --> R["/RelativesChat<br/>AIController.relativesChat"]
     C --> ST["/stream<br/>AIController.streamChat"]
     C --> MM["/chat/multimodal<br/>AIController.multimodalChat"]
-    C --> MW["/api/workflow/medical-chat<br/>AIController.medicalWorkflowChat"]
+    C --> MD["/api/medical-chat<br/>AIController.medicalChat"]
+    C --> MW["/api/workflow/medical-chat<br/>(Deprecated)"]
+    C --> AL["/api/agent/medical-chat<br/>(Deprecated)"]
 
     P --> SP["AIServiceImpl.patientChat<br/>ChatClient + Memory + RAG + Tools"]
     ST --> SP2["AIServiceImpl.streamChat<br/>同上，流式 content"]
     MM --> SP3["AIServiceImpl.multimodalChat<br/>DashScope 多模态 + Tools"]
 
-    R --> WR{app.ai.workflow.enabled<br/>且 tryWorkflowReply 有非空结果?}
-    WR -->|是| WF["medicalWorkflow 图<br/>见 4.4"]
-    WR -->|否| SR["AIServiceImpl.relativesChat<br/>ChatClient 分支"]
-    SR --> SP4["ChatClient + Memory + RAG + Tools<br/>亲属 system 模板"]
-    MW --> WF
+    R --> ORCH["tryWorkflowReply -> MedicalChatOrchestratorService.execute(auto)"]
+    MD --> ORCH
+    MW --> ORCH
+    AL --> ORCH
 
-    WF --> OUT["String / ChatReplyRecord / Flux"]
+    ORCH --> D{auto/模式/条件}
+    D -->|loop| LOOP["AgentLoopMedicalService.execute<br/>ReactAgent + MemorySaver"]
+    D -->|workflow| WF["AgentRouterWorkflowService.executeWorkflow<br/>medicalWorkflow 图"]
+    D -->|fallback| SR["ChatClient（relatives_system 模板）"]
+
+    LOOP --> OUT["String 最终回复"]
+    WF --> OUT
+    SR --> OUT
+
     SP --> OUT
     SP2 --> OUT
     SP3 --> OUT
-    SP4 --> OUT
 
     %% 样式指派
     class A,OUT start_end;
-    class B,C,P,R,ST,MM,MW,WR,WF,SR node_box;
-    class SP,SP2,SP3,SP4 tool_box;
+    class B,C,P,R,ST,MM,MD,MW,AL,ORCH,D node_box;
+    class SP,SP2,SP3 tool_box;
+    class LOOP,WF,SR tool_box;
 ```
 
 涉及文件：`Config/WebConfig.java`、`Auth/RelativeJwtInterceptor.java`、`Controller/AIController.java`、`Service/ServiceImpl/AIServiceImpl.java`、`Workflow/AgentRouterWorkflowService.java`
@@ -174,8 +185,8 @@ flowchart LR
     classDef wf_node fill:#ffffff,stroke:#1565c0,stroke-width:2px;
 
     subgraph Triggers["触发入口"]
-        T1["GET /RelativesChat → AIServiceImpl.tryWorkflowReply<br/>条件：app.ai.workflow.enabled=true 且 userInput 非空即调用；<br/>relativePhone 来自 RelativeLoginContext（未登录 JWT 时为 null，<br/>图中仍可跑通但缺少亲属/默认患者注入）"]
-        T2["GET /api/workflow/medical-chat<br/>AIController.medicalWorkflowChat<br/>须从参数 phone 或登录态解析出 relativePhone，<br/>否则直接返回提示，不进入工作流"]
+        T1["GET /RelativesChat → AIServiceImpl.tryWorkflowReply<br/>-> MedicalChatOrchestratorService.execute(mode=auto)<br/>loop 不可用/失败时 fallback 到 workflow；relativePhone 来自 RelativeLoginContext"]
+        T2["GET /api/medical-chat?mode=workflow<br/>AIController.medicalChat<br/>mode=workflow 固定走 workflow（`/api/workflow/medical-chat` 已 Deprecated 且转发）"]
     end
 
     subgraph Facade["AgentRouterWorkflowService.java"]
@@ -200,7 +211,7 @@ flowchart LR
     class T1,T2,F1,F2,F3,R1,R2 wf_node;
 ```
 
-若 `invoke` 异常或 `FINAL_REPLY` 为空，`executeWorkflow` 返回空字符串；**家属聊天**路径下 `AIServiceImpl` 会视为工作流未产出有效结果，**回退**到普通 `ChatClient`（Memory + RAG + Tools）。
+若 `invoke` 异常或 `FINAL_REPLY` 为空，`executeWorkflow` 返回空字符串；`MedicalChatOrchestratorService` 会视为工作流未产出有效结果，**回退**到普通 `ChatClient`（Memory + RAG + Tools）。
 
 #### 4.5.2 图内节点（对应 Java 文件与行为）
 
@@ -263,8 +274,7 @@ flowchart TD
 
 ### 4.7 配置开关如何影响链路
 
-- `app.ai.workflow.enabled=false`：`/RelativesChat` 使用普通 ChatClient 链路。
-- `app.ai.workflow.enabled=true`：`/RelativesChat` 优先走 `tryWorkflowReply -> executeWorkflow`。
+- `app.ai.workflow.enabled`：不再是 `/RelativesChat` 的主链路开关；目前 `/RelativesChat` 由 `MedicalChatOrchestratorService` 统一编排（`mode=auto`：loop 失败时 fallback 到 workflow，再不行回退到 ChatClient）。
 - `app.auth.jwt.secret` 为空：JWT 拦截器不做验签，登录态不会注入上下文。
 - `app.auth.captcha.*`：控制验证码尺寸、TTL、key 前缀。
 - `app.rag.force-reload=true`：忽略 hash 缓存，启动时强制重建向量。
@@ -274,8 +284,8 @@ flowchart TD
 - 登录报“账号、密码和验证码不能为空”：检查 `login` 请求体是否包含 `account`、`password`、`captchaId`、`captchaCode`。
 - 能登录但 Workflow 无法识别亲属：检查请求头是否带 `Authorization: Bearer <token>`。
 - RAG 没生效：确认 `ragKonloage.txt` 内容是否变更、Qdrant 是否可用、`force-reload` 配置是否符合预期。
-- `/RelativesChat` 没走 Workflow：确认 `app.ai.workflow.enabled` 是否开启。
-- 开关已开但仍像普通聊天：`executeWorkflow` 若返回空字符串（异常或 `FINAL_REPLY` 为空），`AIServiceImpl` 会**回退**到 `ChatClient`；可检查日志或断点 `BaseWorkflowExecutor`。
+- `/RelativesChat` 没走 Workflow：如果当前为 `mode=auto`，需要检查 loop（`app.ai.agent-loop.enabled`）是否可用，以及请求中 `UserID` 是否存在（用于 threadId）；若 loop 失败后 workflow 仍返回空，则会回退到 ChatClient。
+- loop/ workflow 都失败时仍像普通聊天：编排器在 loop 或 workflow 返回空/失败后，会回退到 ChatClient；可检查日志或断点 `MedicalChatOrchestratorService`、`AgentRouterWorkflowService` / `BaseWorkflowExecutor`。
 
 ## 5. 接口总览
 
@@ -290,7 +300,9 @@ flowchart TD
 - `GET /RelativesChat?userInput=...&UserID=...`
 - `GET /stream?userInput=...&UserID=...`（SSE）
 - `POST /chat/multimodal`（`multipart/form-data`，字段：`userInput`、`media`、`UserID`）
-- `GET /api/workflow/medical-chat?query=...&phone=...`
+- `GET /api/medical-chat?query=...&phone=...&UserID=...&mode=auto|loop|workflow`
+- `GET /api/workflow/medical-chat?query=...&phone=...`（Deprecated，已转发到 `/api/medical-chat?mode=workflow`）
+- `GET /api/agent/medical-chat?query=...&phone=...&UserID=...`（Deprecated，已转发到 `/api/medical-chat?mode=loop`）
 
 
 ## 6. RAG 加载机制

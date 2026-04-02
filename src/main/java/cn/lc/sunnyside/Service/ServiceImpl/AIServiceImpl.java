@@ -4,8 +4,9 @@ import cn.lc.sunnyside.AITool.InpatientMedicalTools;
 import cn.lc.sunnyside.Auth.RelativeLoginContext;
 import cn.lc.sunnyside.POJO.DTO.ChatReply;
 import cn.lc.sunnyside.Service.AIService;
+import cn.lc.sunnyside.Service.MedicalChatOrchestratorService;
 import cn.lc.sunnyside.Service.RelativeAccessService;
-import cn.lc.sunnyside.Workflow.AgentRouterWorkflowService;
+import cn.lc.sunnyside.Service.medical.MedicalChatMode;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -41,10 +42,7 @@ public class AIServiceImpl implements AIService {
     private final ChatClient chatClient;
     private final InpatientMedicalTools medicalTools;
     private final RelativeAccessService relativeAccessService;
-    private final AgentRouterWorkflowService agentRouterWorkflowService;
-
-    @Value("${app.ai.workflow.enabled:false}")
-    private boolean workflowEnabled;
+    private final MedicalChatOrchestratorService medicalChatOrchestratorService;
 
     @Value("classpath:prompts/system.st")
     private Resource systemPrompt;
@@ -56,11 +54,11 @@ public class AIServiceImpl implements AIService {
                          ChatMemory chatMemory,
                          InpatientMedicalTools medicalTools,
                          RelativeAccessService relativeAccessService,
-                         AgentRouterWorkflowService agentRouterWorkflowService,
+                         MedicalChatOrchestratorService medicalChatOrchestratorService,
                          VectorStore vectorStore) {
         this.medicalTools = medicalTools;
         this.relativeAccessService = relativeAccessService;
-        this.agentRouterWorkflowService = agentRouterWorkflowService;
+        this.medicalChatOrchestratorService = medicalChatOrchestratorService;
 
         this.chatClient = builder
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
@@ -202,16 +200,12 @@ public class AIServiceImpl implements AIService {
     }
 
     private String tryWorkflowReply(String userInput, String conversationId) {
-        if (!workflowEnabled || !StringUtils.hasText(userInput)) {
+        if (!StringUtils.hasText(userInput)) {
             return null;
         }
         String relativePhone = RelativeLoginContext.get()
                 .map(RelativeLoginContext::phone)
                 .orElse(null);
-        String reply = agentRouterWorkflowService.executeWorkflow(userInput, relativePhone, conversationId);
-        if (!StringUtils.hasText(reply)) {
-            return null;
-        }
-        return reply;
+        return medicalChatOrchestratorService.execute(userInput, relativePhone, conversationId, MedicalChatMode.AUTO);
     }
 }
