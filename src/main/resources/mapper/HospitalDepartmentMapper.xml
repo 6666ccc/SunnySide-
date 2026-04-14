@@ -1,11 +1,36 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="cn.lc.sunnyside.mapper.HospitalDepartmentMapper">
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.project.mapper.HospitalDepartmentMapper">
 
-    <select id="selectById" resultType="cn.lc.sunnyside.POJO.DO.HospitalDepartment">
-        SELECT *
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO hospital_department (dept_name, contact_phone, location)
+        VALUES (#{deptName}, #{contactPhone}, #{location})
+    </insert>
+
+    <update id="updateById">
+        UPDATE hospital_department
+        SET dept_name     = #{deptName},
+            contact_phone = #{contactPhone},
+            location      = #{location},
+            updated_at    = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM hospital_department WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultType="com.example.project.pojo.entity.HospitalDepartment">
+        SELECT id, dept_name, contact_phone, location, created_at, updated_at
         FROM hospital_department
         WHERE id = #{id}
     </select>
 
+    <select id="selectAll" resultType="com.example.project.pojo.entity.HospitalDepartment">
+        SELECT id, dept_name, contact_phone, location, created_at, updated_at
+        FROM hospital_department
+        ORDER BY id
+    </select>
 </mapper>

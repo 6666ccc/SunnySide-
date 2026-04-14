@@ -1,12 +1,46 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="cn.lc.sunnyside.mapper.MedicalTeamDutyMapper">
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.project.mapper.MedicalTeamDutyMapper">
 
-    <select id="selectByDeptIdAndDate" resultType="cn.lc.sunnyside.POJO.DO.MedicalTeamDuty">
-        SELECT *
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO medical_team_duty (dept_id, duty_date, staff_name, staff_role, duty_time, phone)
+        VALUES (#{deptId}, #{dutyDate}, #{staffName}, #{staffRole}, #{dutyTime}, #{phone})
+    </insert>
+
+    <update id="updateById">
+        UPDATE medical_team_duty
+        SET dept_id    = #{deptId},
+            duty_date  = #{dutyDate},
+            staff_name = #{staffName},
+            staff_role = #{staffRole},
+            duty_time  = #{dutyTime},
+            phone      = #{phone}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM medical_team_duty WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultType="com.example.project.pojo.entity.MedicalTeamDuty">
+        SELECT id, dept_id, duty_date, staff_name, staff_role, duty_time, phone, created_at
         FROM medical_team_duty
-        WHERE dept_id = #{deptId}
-          AND duty_date = #{date}
+        WHERE id = #{id}
     </select>
 
+    <select id="selectAll" resultType="com.example.project.pojo.entity.MedicalTeamDuty">
+        SELECT id, dept_id, duty_date, staff_name, staff_role, duty_time, phone, created_at
+        FROM medical_team_duty
+        ORDER BY duty_date DESC, id
+    </select>
+
+    <select id="selectByDeptAndDutyDate" resultType="com.example.project.pojo.entity.MedicalTeamDuty">
+        SELECT id, dept_id, duty_date, staff_name, staff_role, duty_time, phone, created_at
+        FROM medical_team_duty
+        WHERE dept_id = #{deptId}
+          AND duty_date = #{dutyDate}
+        ORDER BY id
+    </select>
 </mapper>

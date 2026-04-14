@@ -1,73 +1,35 @@
 server:
   port: 8080
-  
 
+# false：挂载住院工具；true：仅测 RAG 时不挂工具
+app:
+  ai:
+    rag-test-mode: false
 
 spring:
-  #开启本地yml文件的配置覆盖全局yml文件的配置
-  profiles:
-      active: local
   datasource:
-    url: jdbc:mysql://localhost:3306/sunnyside?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
-    username: ${DB_USERNAME:root}       # 默认 root，生产环境请配置环境变量 DB_USERNAME
-    password: ${DB_PASSWORD:123456789}  # 默认 123456789，生产环境请配置环境变量 DB_PASSWORD
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      timeout: 60s
-
+    url: jdbc:mysql://localhost:3306/sunnyside?serverTimezone=GMT%2B8&characterEncoding=utf8&useSSL=false
+    username: root
+    password: 123456789
   ai:
     dashscope:
-     ## base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
       api-key: ${DASHSCOPE_API_KEY:}
       chat:
         options:
-          model: qwen3.5-plus
-          temperature: 0.7     #温度越高，模型生成内容越随机，温度越低，模型生成内容越确定
-          multi-model: true    #是否支持多模型
-
-    # 2. Qdrant 向量数据库配置
+          model: qwen-max
     vectorstore:
       qdrant:
-        host: ${QDRANT_HOST}
-        port: 6334      # REST API 端口
-        collection-name: Sunny_Side_Qdrant # 集合名称
-        initialize-schema: true
-
-logging:
-  level:
-    "[org.springframework.ai]": DEBUG
-    "[io.qdrant.client]": INFO
+        host: 47.100.11.196
+        port: 6334
+        collection-name: sunnyside
+        use-tls: false #是否使用TLS
+        initialize-schema: true #是否初始化schema
 
 mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.example.project.pojo
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-  mapper-locations: classpath:mapper/*.xml
-
-app:
-  ai:
-    workflow:
-      enabled: ${APP_AI_WORKFLOW_ENABLED:false}
-    agent-loop:
-      enabled: ${APP_AI_AGENT_LOOP_ENABLED:true}
-      max-model-calls: ${APP_AI_AGENT_LOOP_MAX_MODEL_CALLS:12}
-    chat:
-      memory:
-        max-messages: ${APP_AI_CHAT_MEMORY_MAX_MESSAGES:10}
-        redis:
-          key-prefix: ${APP_AI_CHAT_MEMORY_REDIS_KEY_PREFIX:app:ai:chat-memory:}
-          ttl-seconds: ${APP_AI_CHAT_MEMORY_REDIS_TTL_SECONDS:86400}
-  auth:
-    captcha:
-      prefix: ${APP_AUTH_CAPTCHA_PREFIX:auth:family:captcha:}
-      ttl-seconds: ${APP_AUTH_CAPTCHA_TTL_SECONDS:120}
-      width: ${APP_AUTH_CAPTCHA_WIDTH:160}
-      height: ${APP_AUTH_CAPTCHA_HEIGHT:60}
-      code-count: ${APP_AUTH_CAPTCHA_CODE_COUNT:4}
-      interfere-count: ${APP_AUTH_CAPTCHA_INTERFERE_COUNT:20}
-    jwt:
-      secret: ${APP_JWT_SECRET:sunnyside-dev-jwt-secret}
-      issuer: ${APP_JWT_ISSUER:sunnyside}
-      expire-hours: ${APP_JWT_EXPIRE_HOURS:24}
+logging:
+  level:
+    com.example.project.mapper: DEBUG

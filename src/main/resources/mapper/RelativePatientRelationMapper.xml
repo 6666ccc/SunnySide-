@@ -1,24 +1,53 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="cn.lc.sunnyside.mapper.RelativePatientRelationMapper">
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.project.mapper.RelativePatientRelationMapper">
 
-    <select id="selectByRelativeId" resultType="cn.lc.sunnyside.POJO.DO.RelativePatientRelation">
-        SELECT *
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO relative_patient_relation (relative_id, patient_id, relation_type, is_legal_proxy)
+        VALUES (#{relativeId}, #{patientId}, #{relationType}, #{isLegalProxy})
+    </insert>
+
+    <update id="updateById">
+        UPDATE relative_patient_relation
+        SET relative_id     = #{relativeId},
+            patient_id      = #{patientId},
+            relation_type   = #{relationType},
+            is_legal_proxy  = #{isLegalProxy}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM relative_patient_relation WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultType="com.example.project.pojo.entity.RelativePatientRelation">
+        SELECT id, relative_id, patient_id, relation_type, is_legal_proxy, created_at
         FROM relative_patient_relation
-        WHERE relative_id = #{relativeId}
+        WHERE id = #{id}
     </select>
 
-    <select id="selectByPatientId" resultType="cn.lc.sunnyside.POJO.DO.RelativePatientRelation">
-        SELECT *
+    <select id="selectAll" resultType="com.example.project.pojo.entity.RelativePatientRelation">
+        SELECT id, relative_id, patient_id, relation_type, is_legal_proxy, created_at
         FROM relative_patient_relation
-        WHERE patient_id = #{patientId}
+        ORDER BY id
     </select>
 
-    <select id="existsRelation" resultType="java.lang.Integer">
-        SELECT COUNT(1)
-        FROM relative_patient_relation
-        WHERE relative_id = #{relativeId}
-          AND patient_id = #{patientId}
+    <!-- 通过亲属ID获取授权患者列表 -->
+    <select id="selectAuthorizedPatientsByRelativeId" resultType="com.example.project.pojo.vo.AuthorizedPatientVo">
+        SELECT p.id             AS patientId,
+               p.patient_name   AS patientName,
+               p.bed_number     AS bedNumber,
+               p.admission_no   AS admissionNo,
+               r.relation_type  AS relationType,
+               r.is_legal_proxy AS isLegalProxy,
+               p.dept_id        AS deptId,
+               d.dept_name      AS deptName
+        FROM relative_patient_relation r
+                 JOIN patient p ON p.id = r.patient_id
+                 JOIN hospital_department d ON d.id = p.dept_id
+        WHERE r.relative_id = #{relativeId}
+        ORDER BY r.id
     </select>
-
 </mapper>

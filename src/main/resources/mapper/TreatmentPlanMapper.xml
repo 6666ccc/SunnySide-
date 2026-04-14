@@ -1,19 +1,101 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="cn.lc.sunnyside.mapper.TreatmentPlanMapper">
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.project.mapper.TreatmentPlanMapper">
 
-    <select id="selectByPatientIdAndDate" resultType="cn.lc.sunnyside.POJO.DO.TreatmentPlan">
-        SELECT *
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO treatment_plan (patient_id, task_name, description, plan_date, start_time, end_time, location,
+                                    category, is_completed)
+        VALUES (#{patientId}, #{taskName}, #{description}, #{planDate}, #{startTime}, #{endTime}, #{location},
+                #{category}, #{isCompleted})
+    </insert>
+
+    <update id="updateById">
+        UPDATE treatment_plan
+        SET patient_id    = #{patientId},
+            task_name     = #{taskName},
+            description   = #{description},
+            plan_date     = #{planDate},
+            start_time    = #{startTime},
+            end_time      = #{endTime},
+            location      = #{location},
+            category      = #{category},
+            is_completed  = #{isCompleted}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM treatment_plan WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultType="com.example.project.pojo.entity.TreatmentPlan">
+        SELECT id,
+               patient_id,
+               task_name,
+               description,
+               plan_date,
+               start_time,
+               end_time,
+               location,
+               category,
+               is_completed,
+               created_at
+        FROM treatment_plan
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.example.project.pojo.entity.TreatmentPlan">
+        SELECT id,
+               patient_id,
+               task_name,
+               description,
+               plan_date,
+               start_time,
+               end_time,
+               location,
+               category,
+               is_completed,
+               created_at
+        FROM treatment_plan
+        ORDER BY plan_date, start_time
+    </select>
+
+    <select id="selectByPatientAndPlanDate" resultType="com.example.project.pojo.entity.TreatmentPlan">
+        SELECT id,
+               patient_id,
+               task_name,
+               description,
+               plan_date,
+               start_time,
+               end_time,
+               location,
+               category,
+               is_completed,
+               created_at
         FROM treatment_plan
         WHERE patient_id = #{patientId}
           AND plan_date = #{planDate}
         ORDER BY start_time
     </select>
 
-    <select id="selectById" resultType="cn.lc.sunnyside.POJO.DO.TreatmentPlan">
-        SELECT *
+    <select id="selectByPatientPlanDateRangeExcludingMeal" resultType="com.example.project.pojo.entity.TreatmentPlan">
+        SELECT id,
+               patient_id,
+               task_name,
+               description,
+               plan_date,
+               start_time,
+               end_time,
+               location,
+               category,
+               is_completed,
+               created_at
         FROM treatment_plan
-        WHERE id = #{id}
+        WHERE patient_id = #{patientId}
+          AND plan_date &gt;= #{startDate}
+          AND plan_date &lt;= #{endDate}
+          AND category &lt;&gt; 'MEAL'
+        ORDER BY plan_date, start_time
     </select>
-
 </mapper>

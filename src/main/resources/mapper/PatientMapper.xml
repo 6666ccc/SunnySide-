@@ -1,34 +1,81 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="cn.lc.sunnyside.mapper.PatientMapper">
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.project.mapper.PatientMapper">
 
-    <select id="selectById" resultType="cn.lc.sunnyside.POJO.DO.Patient">
-        SELECT *
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO patient (dept_id, patient_name, gender, admission_no, bed_number, admission_date, discharge_date,
+                             status)
+        VALUES (#{deptId}, #{patientName}, #{gender}, #{admissionNo}, #{bedNumber}, #{admissionDate}, #{dischargeDate},
+                #{status})
+    </insert>
+
+    <update id="updateById">
+        UPDATE patient
+        SET dept_id         = #{deptId},
+            patient_name    = #{patientName},
+            gender          = #{gender},
+            admission_no    = #{admissionNo},
+            bed_number      = #{bedNumber},
+            admission_date  = #{admissionDate},
+            discharge_date  = #{dischargeDate},
+            status          = #{status},
+            updated_at      = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM patient WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultType="com.example.project.pojo.entity.Patient">
+        SELECT id,
+               dept_id,
+               patient_name,
+               gender,
+               admission_no,
+               bed_number,
+               admission_date,
+               discharge_date,
+               status,
+               created_at,
+               updated_at
         FROM patient
         WHERE id = #{id}
     </select>
 
-    <select id="selectByAdmissionNo" resultType="cn.lc.sunnyside.POJO.DO.Patient">
-        SELECT *
+    <select id="selectAll" resultType="com.example.project.pojo.entity.Patient">
+        SELECT id,
+               dept_id,
+               patient_name,
+               gender,
+               admission_no,
+               bed_number,
+               admission_date,
+               discharge_date,
+               status,
+               created_at,
+               updated_at
         FROM patient
-        WHERE admission_no = #{admissionNo}
+        ORDER BY id
     </select>
 
-    <select id="selectByDeptId" resultType="cn.lc.sunnyside.POJO.DO.Patient">
-        SELECT *
-        FROM patient
-        WHERE dept_id = #{deptId}
-        ORDER BY bed_number
+    <select id="selectBasicInfoWithDept" resultType="com.example.project.pojo.vo.PatientBasicInfoVo">
+        SELECT p.id              AS patientId,
+               p.patient_name    AS patientName,
+               p.gender          AS gender,
+               p.admission_no    AS admissionNo,
+               p.bed_number      AS bedNumber,
+               p.dept_id         AS deptId,
+               d.dept_name       AS deptName,
+               d.contact_phone   AS deptContactPhone,
+               d.location        AS deptLocation,
+               p.admission_date  AS admissionDate,
+               p.discharge_date  AS dischargeDate,
+               p.status          AS status
+        FROM patient p
+                 JOIN hospital_department d ON d.id = p.dept_id
+        WHERE p.id = #{patientId}
     </select>
-
-    <select id="selectByRef" resultType="cn.lc.sunnyside.POJO.DO.Patient">
-        SELECT *
-        FROM patient
-        WHERE CAST(id AS CHAR) = #{ref}
-           OR patient_name LIKE CONCAT('%', #{ref}, '%')
-           OR admission_no LIKE CONCAT('%', #{ref}, '%')
-        ORDER BY id DESC
-        LIMIT 5
-    </select>
-
 </mapper>

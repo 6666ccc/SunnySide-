@@ -1,22 +1,89 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="cn.lc.sunnyside.mapper.VitalSignsMapper">
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.project.mapper.VitalSignsMapper">
 
-    <select id="selectByPatientIdAndDateRange" resultType="cn.lc.sunnyside.POJO.DO.VitalSigns">
-        SELECT *
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO vital_signs (patient_id, record_date, record_time, systolic_bp, diastolic_bp, heart_rate,
+                                 blood_sugar, temperature, blood_oxygen, recorded_by, notes)
+        VALUES (#{patientId}, #{recordDate}, #{recordTime}, #{systolicBp}, #{diastolicBp}, #{heartRate}, #{bloodSugar},
+                #{temperature}, #{bloodOxygen}, #{recordedBy}, #{notes})
+    </insert>
+
+    <update id="updateById">
+        UPDATE vital_signs
+        SET patient_id    = #{patientId},
+            record_date   = #{recordDate},
+            record_time   = #{recordTime},
+            systolic_bp   = #{systolicBp},
+            diastolic_bp  = #{diastolicBp},
+            heart_rate    = #{heartRate},
+            blood_sugar   = #{bloodSugar},
+            temperature   = #{temperature},
+            blood_oxygen  = #{bloodOxygen},
+            recorded_by   = #{recordedBy},
+            notes         = #{notes}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM vital_signs WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultType="com.example.project.pojo.entity.VitalSigns">
+        SELECT id,
+               patient_id,
+               record_date,
+               record_time,
+               systolic_bp,
+               diastolic_bp,
+               heart_rate,
+               blood_sugar,
+               temperature,
+               blood_oxygen,
+               recorded_by,
+               notes,
+               created_at
         FROM vital_signs
-        WHERE patient_id = #{patientId}
-          AND record_date &gt;= #{startDate}
-          AND record_date &lt;= #{endDate}
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.example.project.pojo.entity.VitalSigns">
+        SELECT id,
+               patient_id,
+               record_date,
+               record_time,
+               systolic_bp,
+               diastolic_bp,
+               heart_rate,
+               blood_sugar,
+               temperature,
+               blood_oxygen,
+               recorded_by,
+               notes,
+               created_at
+        FROM vital_signs
         ORDER BY record_date DESC, record_time DESC
     </select>
 
-    <select id="selectLatestByPatientId" resultType="cn.lc.sunnyside.POJO.DO.VitalSigns">
-        SELECT *
+    <select id="selectByPatientAndRecordDate" resultType="com.example.project.pojo.entity.VitalSigns">
+        SELECT id,
+               patient_id,
+               record_date,
+               record_time,
+               systolic_bp,
+               diastolic_bp,
+               heart_rate,
+               blood_sugar,
+               temperature,
+               blood_oxygen,
+               recorded_by,
+               notes,
+               created_at
         FROM vital_signs
         WHERE patient_id = #{patientId}
-        ORDER BY record_date DESC, record_time DESC
-        LIMIT #{limit}
+          AND record_date = #{recordDate}
+        ORDER BY record_time
     </select>
-
 </mapper>

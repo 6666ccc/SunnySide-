@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.project.mapper.relativeMapper">
+
+    <select id="selectPasswordByUsername" resultType="string">
+        SELECT password FROM relative_user WHERE username = #{username} LIMIT 1
+    </select>
+
+    <!-- full_name、phone 为 NOT NULL；phone 用与 username 绑定的占位，避免 UNIQUE 冲突 -->
+    <insert id="insertUser">
+        INSERT INTO relative_user (username, password, full_name, phone)
+        VALUES (#{username}, #{passwordHash}, '未填写',
+                CONCAT('REG_', SUBSTRING(MD5(#{username}), 1, 28)))
+    </insert>
+
+    <select id="selectAccountByUsername" resultType="map">
+        SELECT id,
+               username,
+               full_name,
+               phone,
+               open_id,
+               created_at,
+               updated_at
+        FROM relative_user
+        WHERE username = #{username}
+        LIMIT 1
+    </select>
+
+    <update id="updatePasswordHash">
+        UPDATE relative_user
+        SET password     = #{passwordHash},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE username = #{username}
+    </update>
+
+    <delete id="deleteByUsername">
+        DELETE FROM relative_user WHERE username = #{username}
+    </delete>
+
+    <select id="selectIdByUsername" resultType="long">
+        SELECT id FROM relative_user WHERE username = #{username} LIMIT 1
+    </select>
+</mapper>

@@ -1,21 +1,45 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="cn.lc.sunnyside.mapper.DietaryAdviceMapper">
+<!DOCTYPE mapper
+    PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.project.mapper.DietaryAdviceMapper">
 
-    <select id="selectByPatientIdAndDate" resultType="cn.lc.sunnyside.POJO.DO.DietaryAdvice">
-        SELECT *
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO dietary_advice (patient_id, meal_date, meal_type, food_content, nutrition_notes)
+        VALUES (#{patientId}, #{mealDate}, #{mealType}, #{foodContent}, #{nutritionNotes})
+    </insert>
+
+    <update id="updateById">
+        UPDATE dietary_advice
+        SET patient_id      = #{patientId},
+            meal_date       = #{mealDate},
+            meal_type       = #{mealType},
+            food_content    = #{foodContent},
+            nutrition_notes = #{nutritionNotes}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM dietary_advice WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultType="com.example.project.pojo.entity.DietaryAdvice">
+        SELECT id, patient_id, meal_date, meal_type, food_content, nutrition_notes, created_at
+        FROM dietary_advice
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectAll" resultType="com.example.project.pojo.entity.DietaryAdvice">
+        SELECT id, patient_id, meal_date, meal_type, food_content, nutrition_notes, created_at
+        FROM dietary_advice
+        ORDER BY meal_date DESC, id
+    </select>
+
+    <select id="selectByPatientAndMealDate" resultType="com.example.project.pojo.entity.DietaryAdvice">
+        SELECT id, patient_id, meal_date, meal_type, food_content, nutrition_notes, created_at
         FROM dietary_advice
         WHERE patient_id = #{patientId}
           AND meal_date = #{mealDate}
-        ORDER BY meal_type
+        ORDER BY FIELD(meal_type, 'BREAKFAST', 'LUNCH', 'DINNER', 'SNACK'), id
     </select>
-
-    <select id="selectByPatientIdAndDateAndType" resultType="cn.lc.sunnyside.POJO.DO.DietaryAdvice">
-        SELECT *
-        FROM dietary_advice
-        WHERE patient_id = #{patientId}
-          AND meal_date = #{mealDate}
-          AND meal_type = #{mealType}
-    </select>
-
 </mapper>
