@@ -47,9 +47,14 @@ public class HospitalAnnouncementServiceImpl implements HospitalAnnouncementServ
         return hospitalAnnouncementMapper.selectAll();
     }
 
-    /* 根据部门ID和发布日期获取医院公告 */
+    private static final int ANNOUNCEMENT_LOOKBACK_DAYS = 30;
+
+    /* 根据部门ID与发布日期下限获取医院公告（仅近 30 日内 publish_date） */
     @Override
     public List<HospitalAnnouncement> listAnnouncements(Long departmentId, LocalDate publishDateSince) {
-        return hospitalAnnouncementMapper.selectAnnouncements(departmentId, publishDateSince);
+        LocalDate windowStart = LocalDate.now().minusDays(ANNOUNCEMENT_LOOKBACK_DAYS - 1L);
+        LocalDate effectiveSince =
+                publishDateSince == null ? windowStart : publishDateSince.isBefore(windowStart) ? windowStart : publishDateSince;
+        return hospitalAnnouncementMapper.selectAnnouncements(departmentId, effectiveSince);
     }
 }

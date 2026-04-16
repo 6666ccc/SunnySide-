@@ -14,9 +14,12 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.example.project.mapper.relativeMapper;
 import com.example.project.pojo.entity.DietaryAdvice;
+import com.example.project.pojo.entity.Faq;
 import com.example.project.pojo.entity.HospitalAnnouncement;
 import com.example.project.pojo.entity.HospitalDepartment;
 import com.example.project.pojo.entity.MedicalTeamDuty;
+import com.example.project.pojo.entity.NearbyFacility;
+import com.example.project.pojo.entity.Patient;
 import com.example.project.pojo.entity.TreatmentPlan;
 import com.example.project.pojo.entity.VitalSigns;
 import com.example.project.pojo.vo.AuthorizedPatientVo;
@@ -24,10 +27,13 @@ import com.example.project.pojo.vo.PatientBasicInfoVo;
 import com.example.project.pojo.vo.RelativeSessionVo;
 import com.example.project.security.JwtUtil;
 import com.example.project.service.DietaryAdviceService;
+import com.example.project.service.FaqService;
 import com.example.project.service.HospitalAnnouncementService;
 import com.example.project.service.HospitalDepartmentService;
 import com.example.project.service.InpatientAiDataService;
 import com.example.project.service.MedicalTeamDutyService;
+import com.example.project.service.NearbyFacilityService;
+import com.example.project.service.PatientAuthService;
 import com.example.project.service.PatientService;
 import com.example.project.service.RelativePatientRelationService;
 import com.example.project.service.TreatmentPlanService;
@@ -43,6 +49,13 @@ public class InpatientAiDataServiceImpl implements InpatientAiDataService {
 
     /** 汇总「治疗/检查」类计划时，自今日起向后查询的天数（含起止日） */
     private static final int TREATMENT_DETECTION_LOOKAHEAD_DAYS = 14;
+
+    private static final int VITAL_TREND_DEFAULT_DAYS = 7;
+
+    private static final int VITAL_TREND_MAX_DAYS = 90;
+
+    private static final String PATIENT_JWT_RESOLVE_ERROR =
+            "无法解析当前登录患者身份：请使用患者端账号登录，并确保请求携带 Authorization: Bearer 令牌。";
 
     private static final String AUTH_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
@@ -73,6 +86,15 @@ public class InpatientAiDataServiceImpl implements InpatientAiDataService {
 
     @Autowired
     private HospitalAnnouncementService hospitalAnnouncementService;
+
+    @Autowired
+    private NearbyFacilityService nearbyFacilityService;
+
+    @Autowired
+    private FaqService faqService;
+
+    @Autowired
+    private PatientAuthService patientAuthService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -133,12 +155,53 @@ public class InpatientAiDataServiceImpl implements InpatientAiDataService {
         return LocalDate.parse(raw.trim());
     }
 
+    private static int parseTrendDays(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return VITAL_TREND_DEFAULT_DAYS;
+        }
+        int d = Integer.parseInt(raw.trim());
+        if (d < 1) {
+            d = 1;
+        }
+        if (d > VITAL_TREND_MAX_DAYS) {
+            d = VITAL_TREND_MAX_DAYS;
+        }
+        return d;
+    }
+
     private String toJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value != null ? value : Collections.emptyList());
         } catch (JsonProcessingException e) {
             return "[]";
         }
+    }
+
+    @Override
+    public Long resolveCurrentPatientIdFromJwt() {
+        String subject = resolveJwtSubjectFromRequest();
+        if (subject == null || subject.isBlank()) {
+            return null;
+        }
+        return patientAuthService.resolvePatientUserId(subject.trim());
+    }
+
+    @Override
+    public String getCurrentPatientContextFromJwt() {
+        String subject = resolveJwtSubjectFromRequest();
+        if (subject == null || subject.isBlank()) {
+            return "当前请求未携带有效 JWT（Authorization: Bearer）或不在 Web 请求上下文中，无法解析患者身份。";
+        }
+        Long patientId = patientAuthService.resolvePatientUserId(subject.trim());
+        if (patientId == null) {
+            return "JWT 中的登录名未找到对应住院患者账号（请使用患者端注册的用户名登录）。";
+        }
+        PatientBasicInfoVo vo = patientService.getBasicInfoWithDept(patientId);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("patientId", patientId);
+        body.put("loginUsername", subject.trim());
+        body.put("basicInfo", vo);
+        return toJson(body);
     }
 
     /**
@@ -334,10 +397,7 @@ public class InpatientAiDataServiceImpl implements InpatientAiDataService {
     }
 
     /**
-     * 查询医院公告
-     * @param departmentId 科室ID
-     * @param publishDateSince 公告发布日期
-     * @return 医院公告
+     * 查询医院公告（服务端仅返回近 30 个自然日内 {@code publish_date} 的记录，详见 {@link HospitalAnnouncementService#listAnnouncements}）。
      */
     @Override
     public String queryHospitalAnnouncements(String departmentId, String publishDateSince) {
@@ -354,5 +414,205 @@ public class InpatientAiDataServiceImpl implements InpatientAiDataService {
         } catch (Exception e) {
             return "publishDateSince 格式应为 YYYY-MM-DD";
         }
+    }
+
+    @Override
+    public String queryVitalSignsTrend(String patientId, String days) {
+        try {
+            Long pid = parseLongId(patientId, "patientId");
+            int n = parseTrendDays(days);
+            LocalDate end = LocalDate.now();
+            LocalDate start = end.minusDays(n - 1L);
+            List<VitalSigns> rows = vitalSignsService.listByPatientAndDateRange(pid, start, end);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("startDate", start.toString());
+            body.put("endDate", end.toString());
+            body.put("days", n);
+            body.put("note", "以下为该区间内按日期汇总的生命体征测量记录；趋势解读须以医护人员意见为准。");
+            body.put("vitalSigns", rows);
+            return toJson(body);
+        } catch (NumberFormatException e) {
+            return "days 应为正整数，缺省为 7，最大 " + VITAL_TREND_MAX_DAYS;
+        } catch (IllegalArgumentException e) {
+            return e.getMessage();
+        }
+    }
+
+    @Override
+    public String queryTodayScheduleSummary(String patientId) {
+        try {
+            Long pid = parseLongId(patientId, "patientId");
+            Patient patient = patientService.getById(pid);
+            if (patient == null) {
+                return "未找到患者。";
+            }
+            LocalDate today = LocalDate.now();
+            Long deptId = patient.getDeptId();
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("date", today.toString());
+            body.put("treatmentPlans", treatmentPlanService.listByPatientAndPlanDate(pid, today));
+            body.put("dietaryAdvice", dietaryAdviceService.listByPatientAndMealDate(pid, today));
+            body.put("medicalTeamDuty", medicalTeamDutyService.listByDeptAndDutyDate(deptId, today));
+            return toJson(body);
+        } catch (IllegalArgumentException e) {
+            return e.getMessage();
+        }
+    }
+
+    @Override
+    public String queryDischargeProgress(String patientId) {
+        try {
+            Long pid = parseLongId(patientId, "patientId");
+            PatientBasicInfoVo info = patientService.getBasicInfoWithDept(pid);
+            if (info == null) {
+                return "未找到患者或科室信息。";
+            }
+            List<TreatmentPlan> pending = treatmentPlanService.listUncompletedByPatientExcludingMeal(pid);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("patientStatus", info.getStatus());
+            body.put("patientName", info.getPatientName());
+            body.put("admissionNo", info.getAdmissionNo());
+            body.put("totalPending", pending.size());
+            body.put("pendingItems", pending);
+            body.put("note",
+                    "pendingItems 为未完成且非纯用餐类（MEAL）的诊疗计划项；出院流程以病区与主管医生告知为准。");
+            return toJson(body);
+        } catch (IllegalArgumentException e) {
+            return e.getMessage();
+        }
+    }
+
+    @Override
+    public String queryNearbyFacilities(String departmentId) {
+        try {
+            Long did = parseLongId(departmentId, "departmentId");
+            List<NearbyFacility> rows = nearbyFacilityService.listByDeptId(did);
+            return toJson(rows);
+        } catch (IllegalArgumentException e) {
+            return e.getMessage();
+        }
+    }
+
+    @Override
+    public String queryFrequentlyAskedQuestions(String category) {
+        String cat = category != null ? category.trim() : "";
+        if (cat.isEmpty()) {
+            cat = null;
+        }
+        List<Faq> rows = faqService.listByCategoryOptional(cat);
+        return toJson(rows);
+    }
+
+    @Override
+    public String queryMyTreatmentPlanByDate(String planDate) {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        return queryTreatmentPlanByDate(String.valueOf(pid), planDate);
+    }
+
+    @Override
+    public String queryMyVitalSigns(String recordDate) {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        return queryVitalSigns(String.valueOf(pid), recordDate);
+    }
+
+    @Override
+    public String queryMyTreatmentAndDetection() {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        return queryTreatmentAndDetection(String.valueOf(pid));
+    }
+
+    @Override
+    public String queryMyVitalSignsTrend(String days) {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        return queryVitalSignsTrend(String.valueOf(pid), days);
+    }
+
+    @Override
+    public String queryMyDietaryAdvice(String mealDate) {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        return queryDietaryAdvice(String.valueOf(pid), mealDate);
+    }
+
+    @Override
+    public String queryMyTodayScheduleSummary() {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        return queryTodayScheduleSummary(String.valueOf(pid));
+    }
+
+    @Override
+    public String queryMyDischargeProgress() {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        return queryDischargeProgress(String.valueOf(pid));
+    }
+
+    @Override
+    public String queryMyDepartmentInfo() {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        PatientBasicInfoVo vo = patientService.getBasicInfoWithDept(pid);
+        if (vo == null || vo.getDeptId() == null) {
+            return "未找到患者或科室信息。";
+        }
+        return queryDepartmentInfo(String.valueOf(vo.getDeptId()));
+    }
+
+    @Override
+    public String queryMyMedicalTeamDuty(String dutyDate) {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        PatientBasicInfoVo vo = patientService.getBasicInfoWithDept(pid);
+        if (vo == null || vo.getDeptId() == null) {
+            return "未找到患者或科室信息。";
+        }
+        return queryMedicalTeamDuty(String.valueOf(vo.getDeptId()), dutyDate);
+    }
+
+    @Override
+    public String queryMyHospitalAnnouncements(String publishDateSince) {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        PatientBasicInfoVo vo = patientService.getBasicInfoWithDept(pid);
+        String deptPart = vo != null && vo.getDeptId() != null ? String.valueOf(vo.getDeptId()) : null;
+        return queryHospitalAnnouncements(deptPart, publishDateSince);
+    }
+
+    @Override
+    public String queryMyNearbyFacilities() {
+        Long pid = resolveCurrentPatientIdFromJwt();
+        if (pid == null) {
+            return PATIENT_JWT_RESOLVE_ERROR;
+        }
+        PatientBasicInfoVo vo = patientService.getBasicInfoWithDept(pid);
+        if (vo == null || vo.getDeptId() == null) {
+            return "未找到患者或科室信息。";
+        }
+        return queryNearbyFacilities(String.valueOf(vo.getDeptId()));
     }
 }

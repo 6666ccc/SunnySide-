@@ -1,3 +1,14 @@
+create table faq
+(
+    id         bigint unsigned auto_increment
+        primary key,
+    category   varchar(64)                        not null comment '分类(如: ADMISSION,EXPENSE,INSURANCE,DISCHARGE,GENERAL)',
+    question   varchar(255)                       not null comment '问题',
+    answer     text                               not null comment '回答',
+    sort_order int      default 0                 not null comment '排序权重',
+    created_at datetime default CURRENT_TIMESTAMP not null
+);
+
 create table hospital_department
 (
     id            bigint unsigned auto_increment comment '主键ID'
@@ -45,6 +56,21 @@ create table medical_team_duty
 create index idx_duty_dept_date
     on medical_team_duty (dept_id, duty_date);
 
+create table nearby_facility
+(
+    id            bigint unsigned auto_increment
+        primary key,
+    dept_id       bigint unsigned                                                              not null comment '关联科室ID',
+    facility_name varchar(128)                                                                 not null comment '设施名称',
+    facility_type enum ('CANTEEN', 'CONVENIENCE_STORE', 'PARKING', 'ATM', 'PHARMACY', 'OTHER') not null,
+    location      varchar(255)                                                                 null comment '位置描述',
+    distance      varchar(64)                                                                  null comment '大致距离或步行时间',
+    created_at    datetime default CURRENT_TIMESTAMP                                           not null,
+    constraint fk_facility_dept
+        foreign key (dept_id) references hospital_department (id)
+            on delete cascade
+);
+
 create table patient
 (
     id             bigint unsigned auto_increment comment '主键ID'
@@ -56,10 +82,14 @@ create table patient
     bed_number     varchar(32)                                                                 not null comment '病床号',
     admission_date date                                                                        not null comment '入院日期',
     status         enum ('IN_HOSPITAL', 'DISCHARGED', 'TRANSFERRED') default 'IN_HOSPITAL'     not null comment '在院状态',
+    username       varchar(64)                                                                 null comment '患者登录账号',
+    password       varchar(128)                                                                null comment '患者登录密码(BCrypt)',
     created_at     datetime                                          default CURRENT_TIMESTAMP not null,
     updated_at     datetime                                          default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP,
     constraint uk_admission_no
         unique (admission_no),
+    constraint uk_patient_username
+        unique (username),
     constraint fk_patient_dept
         foreign key (dept_id) references hospital_department (id)
             on delete cascade

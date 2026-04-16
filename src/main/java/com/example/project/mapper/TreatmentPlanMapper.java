@@ -30,4 +30,9 @@ public interface TreatmentPlanMapper {
     List<TreatmentPlan> selectByPatientPlanDateRangeExcludingMeal(@Param("patientId") Long patientId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    /**
+     * 未完成且非用餐类计划项，用于出院准备进度等。
+     */
+    List<TreatmentPlan> selectUncompletedByPatientExcludingMeal(@Param("patientId") Long patientId);
 }

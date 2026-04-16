@@ -23,4 +23,8 @@ public interface VitalSignsMapper {
 
     List<VitalSigns> selectByPatientAndRecordDate(@Param("patientId") Long patientId,
             @Param("recordDate") LocalDate recordDate);
+
+    List<VitalSigns> selectByPatientAndDateRange(@Param("patientId") Long patientId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
 }

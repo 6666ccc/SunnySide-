@@ -39,14 +39,9 @@
         SELECT id, dept_id, title, content, publish_date, priority, created_at
         FROM hospital_announcement
         <where>
+            publish_date &gt;= #{publishDateSince}
             <if test="departmentId != null">
                 AND (dept_id IS NULL OR dept_id = #{departmentId})
-            </if>
-            <if test="departmentId == null">
-                AND dept_id IS NULL
-            </if>
-            <if test="publishDateSince != null">
-                AND publish_date &gt;= #{publishDateSince}
             </if>
         </where>
         ORDER BY publish_date DESC,

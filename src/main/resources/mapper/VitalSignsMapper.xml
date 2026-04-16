@@ -86,4 +86,25 @@
           AND record_date = #{recordDate}
         ORDER BY record_time
     </select>
+
+    <select id="selectByPatientAndDateRange" resultType="com.example.project.pojo.entity.VitalSigns">
+        SELECT id,
+               patient_id,
+               record_date,
+               record_time,
+               systolic_bp,
+               diastolic_bp,
+               heart_rate,
+               blood_sugar,
+               temperature,
+               blood_oxygen,
+               recorded_by,
+               notes,
+               created_at
+        FROM vital_signs
+        WHERE patient_id = #{patientId}
+          AND record_date &gt;= #{startDate}
+          AND record_date &lt;= #{endDate}
+        ORDER BY record_date, record_time
+    </select>
 </mapper>

@@ -17,6 +17,9 @@ public class AITool {
     private static final String TOOL_DESC_PATIENT_ID_TAIL =
             " 参数 patientId 必须与用户提示中「会话上下文」所列患者ID及「【工具参数】」行数字字符串完全一致，勿留空或猜测。";
 
+    private static final String TOOL_DESC_DEPARTMENT_ID_TAIL =
+            " 参数 departmentId 为科室/病区主键 ID，须与 queryPatientBasicInfo 等工具返回的 deptId 一致，勿猜测。";
+
     @Autowired
     private InpatientAiDataService inpatientAiDataService;
 
@@ -80,7 +83,8 @@ public class AITool {
             查询指定科室在某一日期的医护值班信息：值班日期、医护姓名、职责角色（主任/主治/责任护士等）、班次（如白班/夜班）、病区紧急或公开联系电话。
             用于「今天谁管床」「责任护士电话多少」等（注意隐私与医院规定，仅返回业务允许对外展示的信息）。
             对应数据：medical_team_duty。
-            参数 departmentId：科室 ID；dutyDate：日期 YYYY-MM-DD。""")
+            参数 departmentId：科室主键 ID，须与会话中患者行的 deptId 一致。
+            参数 dutyDate：YYYY-MM-DD；用户说「今天」「今日」时须与会话上下文中的「服务端当日」一致，或留空/省略（实现层按服务端当日查询）。禁止编造或使用无关示例日期。""")
     public String queryMedicalTeamDuty(String departmentId, String dutyDate) {
         return inpatientAiDataService.queryMedicalTeamDuty(departmentId, dutyDate);
     }
@@ -105,11 +109,59 @@ public class AITool {
     }
 
     @Tool(description = """
-            查询医院或科室发布的公告：标题、正文、发布日期、优先级；科室 ID 为空时表示全院公告。
+            查询医院/院系科室发布的公告：标题、正文、发布日期、优先级；服务端仅返回近 30 个自然日内已发布（publish_date）的记录。
+            departmentId 非空：返回全院公告（dept_id 为空）与该院系科室公告的并集；为空：返回时间窗内全部科室及全院公告。
             用于探视时间调整、住院须知、停水停电等公开通知，帮助家属提前安排行程。
             对应数据：hospital_announcement。
-            参数 departmentId：可选，科室 ID；仅查全院公告时可传空或特定约定值；publishDateSince：可选，只拉取某日之后或近期的公告，格式 YYYY-MM-DD。""")
+            参数 departmentId：可选，须与会话中患者行的 deptId 一致以便优先看本科室与全院；publishDateSince：可选，YYYY-MM-DD，若早于近 30 日窗口则按窗口起点截断。""")
     public String queryHospitalAnnouncements(String departmentId, String publishDateSince) {
         return inpatientAiDataService.queryHospitalAnnouncements(departmentId, publishDateSince);
+    }
+
+    @Tool(description = """
+            查询患者近若干天内生命体征的趋势数据（按测量日期与时间排序）：血压、心率、血糖、体温、血氧、测量护士与备注等。
+            用于家属了解「这几天体温/血压变化」等；不能替代医护解读。
+            对应数据：vital_signs。
+            参数 patientId：患者 ID；days：回溯天数，正整数，缺省为 7，最大 90。"""
+            + TOOL_DESC_PATIENT_ID_TAIL)
+    public String queryVitalSignsTrend(String patientId, String days) {
+        return inpatientAiDataService.queryVitalSignsTrend(patientId, days);
+    }
+
+    @Tool(description = """
+            汇总「今日」与该患者相关的行程：诊疗护理计划、饮食医嘱、所在科室当日医护值班。
+            用于回答「今天病人要做什么检查/吃饭怎么安排/今天谁值班」等一站式问题。
+            组合数据来源：treatment_plan、dietary_advice、medical_team_duty（日期为服务端当日）。
+            参数 patientId：患者 ID。"""
+            + TOOL_DESC_PATIENT_ID_TAIL)
+    public String queryTodayScheduleSummary(String patientId) {
+        return inpatientAiDataService.queryTodayScheduleSummary(patientId);
+    }
+
+    @Tool(description = """
+            出院准备相关只读摘要：患者在院状态（在院/已出院/已转科）及尚未完成且非纯用餐类（已排除 MEAL）的诊疗计划项列表与数量。
+            用于家属了解「还有哪些检查/治疗没做完」等；具体出院手续以病区与主管医生为准。
+            对应数据：patient、treatment_plan。
+            参数 patientId：患者 ID。"""
+            + TOOL_DESC_PATIENT_ID_TAIL)
+    public String queryDischargeProgress(String patientId) {
+        return inpatientAiDataService.queryDischargeProgress(patientId);
+    }
+
+    @Tool(description = """
+            查询某科室/病区周边的便民设施：食堂、便利店、停车、ATM、药店等名称、类型、位置与大致距离。
+            对应数据：nearby_facility。
+            参数 departmentId：科室主键 ID。"""
+            + TOOL_DESC_DEPARTMENT_ID_TAIL)
+    public String queryNearbyFacilities(String departmentId) {
+        return inpatientAiDataService.queryNearbyFacilities(departmentId);
+    }
+
+    @Tool(description = """
+            查询住院常见问答（FAQ）：问题、回答、分类与排序；可按业务分类筛选，如 ADMISSION、EXPENSE、INSURANCE、DISCHARGE、GENERAL 等。
+            category 留空或省略时表示返回库中全部 FAQ（按分类与 sort_order 排序）。
+            对应数据：faq。""")
+    public String queryFrequentlyAskedQuestions(String category) {
+        return inpatientAiDataService.queryFrequentlyAskedQuestions(category);
     }
 }

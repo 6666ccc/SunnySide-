@@ -22,7 +22,8 @@ public interface HospitalAnnouncementMapper {
     List<HospitalAnnouncement> selectAll();
 
     /**
-     * 全院公告：dept_id IS NULL；科室公告：dept_id 匹配；publishDateSince 非空时按发布日期下限过滤。
+     * 按 publish_date 下限查询；departmentId 非空时含全院(dept_id IS NULL)与该院系科室；为空时不限科室。
+     * publishDateSince 由调用方保证非空（如近 30 日窗口下限）。
      */
     List<HospitalAnnouncement> selectAnnouncements(@Param("departmentId") Long departmentId,
             @Param("publishDateSince") LocalDate publishDateSince);

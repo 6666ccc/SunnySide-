@@ -58,4 +58,9 @@ public class TreatmentPlanServiceImpl implements TreatmentPlanService {
             LocalDate endInclusive) {
         return treatmentPlanMapper.selectByPatientPlanDateRangeExcludingMeal(patientId, startInclusive, endInclusive);
     }
+
+    @Override
+    public List<TreatmentPlan> listUncompletedByPatientExcludingMeal(Long patientId) {
+        return treatmentPlanMapper.selectUncompletedByPatientExcludingMeal(patientId);
+    }
 }

@@ -18,6 +18,8 @@ public class Patient {
     private LocalDate dischargeDate;
     /** IN_HOSPITAL / DISCHARGED / TRANSFERRED */
     private String status;
+    private String username;
+    private String password;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

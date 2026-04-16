@@ -22,4 +22,7 @@ public interface RelativePatientRelationMapper {
     List<RelativePatientRelation> selectAll();
 
     List<AuthorizedPatientVo> selectAuthorizedPatientsByRelativeId(@Param("relativeId") Long relativeId);
+
+    RelativePatientRelation selectByRelativeAndPatient(
+            @Param("relativeId") Long relativeId, @Param("patientId") Long patientId);
 }

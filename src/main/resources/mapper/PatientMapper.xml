@@ -61,6 +61,60 @@
         ORDER BY id
     </select>
 
+    <select id="selectByAdmissionNo" resultType="com.example.project.pojo.entity.Patient">
+        SELECT id,
+               dept_id,
+               patient_name,
+               gender,
+               admission_no,
+               bed_number,
+               admission_date,
+               discharge_date,
+               status,
+               created_at,
+               updated_at
+        FROM patient
+        WHERE admission_no = #{admissionNo}
+          AND status = 'IN_HOSPITAL'
+    </select>
+
+    <select id="selectByAdmissionNoForRegister" resultType="com.example.project.pojo.entity.Patient">
+        SELECT id,
+               dept_id,
+               patient_name,
+               gender,
+               admission_no,
+               bed_number,
+               admission_date,
+               discharge_date,
+               status,
+               username,
+               created_at,
+               updated_at
+        FROM patient
+        WHERE admission_no = #{admissionNo}
+    </select>
+
+    <select id="selectPasswordByUsername" resultType="java.lang.String">
+        SELECT password
+        FROM patient
+        WHERE username = #{username}
+    </select>
+
+    <select id="selectIdByUsername" resultType="java.lang.Long">
+        SELECT id
+        FROM patient
+        WHERE username = #{username}
+    </select>
+
+    <update id="updateUsernameAndPassword">
+        UPDATE patient
+        SET username   = #{username},
+            password   = #{passwordHash},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+    </update>
+
     <select id="selectBasicInfoWithDept" resultType="com.example.project.pojo.vo.PatientBasicInfoVo">
         SELECT p.id              AS patientId,
                p.patient_name    AS patientName,

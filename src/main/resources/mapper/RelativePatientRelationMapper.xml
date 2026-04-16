@@ -50,4 +50,12 @@
         WHERE r.relative_id = #{relativeId}
         ORDER BY r.id
     </select>
+
+    <select id="selectByRelativeAndPatient" resultType="com.example.project.pojo.entity.RelativePatientRelation">
+        SELECT id, relative_id, patient_id, relation_type, is_legal_proxy, created_at
+        FROM relative_patient_relation
+        WHERE relative_id = #{relativeId}
+          AND patient_id = #{patientId}
+        LIMIT 1
+    </select>
 </mapper>

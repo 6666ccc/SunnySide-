@@ -22,4 +22,20 @@ public interface PatientMapper {
     List<Patient> selectAll();
 
     PatientBasicInfoVo selectBasicInfoWithDept(@Param("patientId") Long patientId);
+
+    /**
+     * 按住院号查询在院患者（仅 {@code IN_HOSPITAL}），用于家属绑定/搜索。
+     */
+    Patient selectByAdmissionNo(@Param("admissionNo") String admissionNo);
+
+    /** 按住院号查询患者（不限状态），用于患者注册验证 */
+    Patient selectByAdmissionNoForRegister(@Param("admissionNo") String admissionNo);
+
+    String selectPasswordByUsername(@Param("username") String username);
+
+    Long selectIdByUsername(@Param("username") String username);
+
+    int updateUsernameAndPassword(@Param("id") Long id,
+                                  @Param("username") String username,
+                                  @Param("passwordHash") String passwordHash);
 }

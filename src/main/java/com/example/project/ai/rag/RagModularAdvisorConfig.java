@@ -1,5 +1,6 @@
 package com.example.project.ai.rag;
 
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
@@ -14,6 +15,7 @@ import org.springframework.ai.vectorstore.VectorStore;
  * 这个类是用于配置RAG的模块化顾问
  */
 @Configuration
+@EnableConfigurationProperties(RagIngestProperties.class)
 public class RagModularAdvisorConfig {
 
     //将向量库文档检索器注入到Spring容器中

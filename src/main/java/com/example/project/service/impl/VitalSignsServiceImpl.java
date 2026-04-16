@@ -52,4 +52,10 @@ public class VitalSignsServiceImpl implements VitalSignsService {
     public List<VitalSigns> listByPatientAndRecordDate(Long patientId, LocalDate recordDate) {
         return vitalSignsMapper.selectByPatientAndRecordDate(patientId, recordDate);
     }
+
+    @Override
+    public List<VitalSigns> listByPatientAndDateRange(Long patientId, LocalDate startInclusive,
+            LocalDate endInclusive) {
+        return vitalSignsMapper.selectByPatientAndDateRange(patientId, startInclusive, endInclusive);
+    }
 }

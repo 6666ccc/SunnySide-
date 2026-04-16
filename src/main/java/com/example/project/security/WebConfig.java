@@ -19,6 +19,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/relative/login",
                         "/relative/register",
+                        "/patient/login",
+                        "/patient/register",
                         "/error");
     }
 }

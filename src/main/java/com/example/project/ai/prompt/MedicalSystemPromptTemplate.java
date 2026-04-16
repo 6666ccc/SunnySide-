@@ -1,5 +1,6 @@
 package com.example.project.ai.prompt;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -65,7 +66,10 @@ public class MedicalSystemPromptTemplate {
         String userIdLine = userId != null ? String.valueOf(userId) : "（未登录/未提供）";
         StringBuilder userContext = new StringBuilder();
         userContext.append("【会话上下文】\n");
-        userContext.append("userId: ").append(userIdLine).append("\n\n");
+        userContext.append("userId: ").append(userIdLine).append("\n");
+        userContext.append("服务端当日(「今天」「今日」及 dutyDate/planDate 等日期参数以此为准): ")
+                .append(LocalDate.now())
+                .append("\n\n");
         userContext.append(patientBlock);
         if (extraContext != null && !extraContext.isBlank()) {
             userContext.append("\n\n").append(extraContext.trim());
@@ -122,6 +126,7 @@ public class MedicalSystemPromptTemplate {
                     .append(" 姓名=").append(nullToEmpty(p.getPatientName()))
                     .append(" 床=").append(nullToEmpty(p.getBedNumber()))
                     .append(" 科=").append(nullToEmpty(p.getDeptName()))
+                    .append(" deptId=").append(formatPatientId(p.getDeptId()))
                     .append(" 住院号=").append(nullToEmpty(p.getAdmissionNo()))
                     .append(" 关系=").append(nullToEmpty(p.getRelationType()))
                     .append(" 法定代理=").append(formatLegalProxy(p.getIsLegalProxy()))

@@ -98,4 +98,23 @@
           AND category &lt;&gt; 'MEAL'
         ORDER BY plan_date, start_time
     </select>
+
+    <select id="selectUncompletedByPatientExcludingMeal" resultType="com.example.project.pojo.entity.TreatmentPlan">
+        SELECT id,
+               patient_id,
+               task_name,
+               description,
+               plan_date,
+               start_time,
+               end_time,
+               location,
+               category,
+               is_completed,
+               created_at
+        FROM treatment_plan
+        WHERE patient_id = #{patientId}
+          AND is_completed = 0
+          AND category &lt;&gt; 'MEAL'
+        ORDER BY plan_date, start_time
+    </select>
 </mapper>

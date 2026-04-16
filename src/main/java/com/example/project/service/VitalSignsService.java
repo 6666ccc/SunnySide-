@@ -18,4 +18,6 @@ public interface VitalSignsService {
     List<VitalSigns> listAll();
 
     List<VitalSigns> listByPatientAndRecordDate(Long patientId, LocalDate recordDate);
+
+    List<VitalSigns> listByPatientAndDateRange(Long patientId, LocalDate startInclusive, LocalDate endInclusive);
 }

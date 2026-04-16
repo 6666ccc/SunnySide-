@@ -5,6 +5,22 @@ server:
 app:
   ai:
     rag-test-mode: false
+    # RAG 启动灌库：默认按内容 SHA-256 增量；变更时先按 doc_key 删旧分片再写入，避免重复向量
+    rag-ingest:
+      enabled: true
+      doc-key: "kb:rag/RAG.txt"
+      force: false
+      # state-path: "D:/tmp/sunnyside-rag-ingest.properties"  # 可选；默认 java.io.tmpdir/sunnyside-rag/ingest-state.properties
+    # MessageWindowChatMemory 窗口大小（与是否 JDBC 无关）；持久化后仍生效
+    chat-memory:
+      max-messages: 20
+  # 浏览器跨域：前端与后端不同源时必配；生产请改为实际域名
+  cors:
+    allowed-origin-patterns:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
+    allow-credentials: false
+    max-age: 3600
 
 spring:
   datasource:
@@ -12,14 +28,20 @@ spring:
     username: root
     password: 123456789
   ai:
+    # 会话记忆落库：真实 MySQL 须 always；若改用 Flyway/Liquibase 管理表结构可改为 never
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
     dashscope:
-      api-key: ${DASHSCOPE_API_KEY:}
+      api-key: your-dashscope-api-key
       chat:
         options:
           model: qwen-max
     vectorstore:
       qdrant:
-        host: 47.100.11.196
+        host: localhost
         port: 6334
         collection-name: sunnyside
         use-tls: false #是否使用TLS

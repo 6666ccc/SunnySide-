@@ -1,0 +1,284 @@
+{
+  "info": {
+    "_postman_id": "c7f3a2b1-4d5e-6f70-8a9b-sunnyside-api-01",
+    "name": "SunnySide API（仅本地 localhost）",
+    "description": "本集合假定服务始终跑在本机，与 application.yml 默认一致：无 context-path、端口 8080。\n\n鉴权：除登录、注册外，均需 Authorization: Bearer {{jwtToken}}。\n\n先改变量 username、password，再执行「登录」；Tests 会写入 jwtToken。\n\n若你改过 server.port，只改集合变量 localPort 即可（见各请求 URL 使用）。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "localHost",
+      "value": "localhost"
+    },
+    {
+      "key": "localPort",
+      "value": "8080"
+    },
+    {
+      "key": "jwtToken",
+      "value": ""
+    },
+    {
+      "key": "username",
+      "value": "demo_user"
+    },
+    {
+      "key": "password",
+      "value": "change_me"
+    },
+    {
+      "key": "admissionNo",
+      "value": "CHANGE_TO_REAL_ADMISSION_NO"
+    },
+    {
+      "key": "relationId",
+      "value": "1"
+    },
+    {
+      "key": "chatSessionId",
+      "value": "local-session-1"
+    },
+    {
+      "key": "chatMessage",
+      "value": "你好"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 认证（无 Bearer）",
+      "item": [
+        {
+          "name": "POST 登录",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "try {",
+                  "  const j = pm.response.json();",
+                  "  if (j && j.data && j.data.token) {",
+                  "    pm.collectionVariables.set('jwtToken', j.data.token);",
+                  "    if (j.data.username) {",
+                  "      pm.collectionVariables.set('username', j.data.username);",
+                  "    }",
+                  "  }",
+                  "} catch (e) {",
+                  "  console.warn(e);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/relative/login",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["relative", "login"]
+            },
+            "description": "data: { token, username }。JWT subject 为 username。"
+          }
+        },
+        {
+          "name": "POST 注册",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"new_local_user\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/relative/register",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["relative", "register"]
+            },
+            "description": "注册后仍需登录拿 token。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 亲属账户",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{jwtToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "GET getInfo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/relative/getInfo?username={{username}}",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["relative", "getInfo"],
+              "query": [{ "key": "username", "value": "{{username}}" }]
+            },
+            "description": "返回纯字符串，非 Result JSON。"
+          }
+        },
+        {
+          "name": "POST updateInfo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/relative/updateInfo?username={{username}}&oldPassword={{password}}&newPassword=new_password_here",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["relative", "updateInfo"],
+              "query": [
+                { "key": "username", "value": "{{username}}" },
+                { "key": "oldPassword", "value": "{{password}}" },
+                { "key": "newPassword", "value": "new_password_here" }
+              ]
+            },
+            "description": "改 newPassword 查询参数后再发。"
+          }
+        },
+        {
+          "name": "POST deleteInfo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/relative/deleteInfo?username={{username}}&password={{password}}",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["relative", "deleteInfo"],
+              "query": [
+                { "key": "username", "value": "{{username}}" },
+                { "key": "password", "value": "{{password}}" }
+              ]
+            },
+            "description": "注销账号，慎用。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 绑定患者",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{jwtToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "GET searchPatient",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/bindPatient/searchPatient?admissionNo={{admissionNo}}",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["bindPatient", "searchPatient"],
+              "query": [{ "key": "admissionNo", "value": "{{admissionNo}}" }]
+            }
+          }
+        },
+        {
+          "name": "POST bindByAdmissionNo",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admissionNo\": \"{{admissionNo}}\",\n  \"relationType\": \"子女\",\n  \"isLegalProxy\": false\n}"
+            },
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/bindPatient/bindByAdmissionNo",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["bindPatient", "bindByAdmissionNo"]
+            }
+          }
+        },
+        {
+          "name": "GET myPatients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/bindPatient/myPatients",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["bindPatient", "myPatients"]
+            },
+            "description": "把返回里的 relationId 写入集合变量 relationId 再测 DELETE。"
+          }
+        },
+        {
+          "name": "DELETE unbind",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/bindPatient/unbind/{{relationId}}",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["bindPatient", "unbind", "{{relationId}}"]
+            },
+            "description": "path 最后一段为数字 id，勿带花括号字面量。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 AI 聊天",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{jwtToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "GET chat",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://{{localHost}}:{{localPort}}/chat?timeId={{chatSessionId}}&message={{chatMessage}}",
+              "protocol": "http",
+              "host": ["{{localHost}}"],
+              "port": "{{localPort}}",
+              "path": ["chat"],
+              "query": [
+                { "key": "timeId", "value": "{{chatSessionId}}" },
+                { "key": "message", "value": "{{chatMessage}}" }
+              ]
+            },
+            "description": "message 在 Params 里可直接写中文；与工具链共用 Authorization。"
+          }
+        }
+      ]
+    }
+  ]
+}

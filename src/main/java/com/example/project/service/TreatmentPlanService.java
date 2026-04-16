@@ -24,4 +24,7 @@ public interface TreatmentPlanService {
      */
     List<TreatmentPlan> listTreatmentAndExaminationByDateRange(Long patientId, LocalDate startInclusive,
             LocalDate endInclusive);
+
+    /** 未完成且非 MEAL 的诊疗计划项 */
+    List<TreatmentPlan> listUncompletedByPatientExcludingMeal(Long patientId);
 }
